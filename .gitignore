@@ -1,0 +1,16 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+*.egg-info/
+dist/
+build/
+
+# 批量渲染产物（姿态库里的 preview.png 才是提交对象）
+renders/
+
+# 编辑器
+.vscode/
+.idea/
