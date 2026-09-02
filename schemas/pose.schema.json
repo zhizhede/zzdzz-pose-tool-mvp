@@ -1,0 +1,104 @@
+{
+  "$defs": {
+    "Person": {
+      "description": "单个人物的关键点集合。",
+      "properties": {
+        "pose_keypoints_2d": {
+          "items": {
+            "type": "number"
+          },
+          "title": "Pose Keypoints 2D",
+          "type": "array"
+        },
+        "hand_left_keypoints_2d": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "number"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Hand Left Keypoints 2D"
+        },
+        "hand_right_keypoints_2d": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "number"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Hand Right Keypoints 2D"
+        },
+        "face_keypoints_2d": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "number"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Face Keypoints 2D"
+        }
+      },
+      "required": [
+        "pose_keypoints_2d"
+      ],
+      "title": "Person",
+      "type": "object"
+    }
+  },
+  "description": "pose.json 顶层结构。字段名与 openpose-editor 的 JSON 相互兼容。",
+  "properties": {
+    "version": {
+      "default": "0.2",
+      "title": "Version",
+      "type": "string"
+    },
+    "canvas_width": {
+      "default": 512,
+      "exclusiveMinimum": 0,
+      "title": "Canvas Width",
+      "type": "integer"
+    },
+    "canvas_height": {
+      "default": 512,
+      "exclusiveMinimum": 0,
+      "title": "Canvas Height",
+      "type": "integer"
+    },
+    "people": {
+      "items": {
+        "$ref": "#/$defs/Person"
+      },
+      "minItems": 1,
+      "title": "People",
+      "type": "array"
+    },
+    "meta": {
+      "additionalProperties": true,
+      "title": "Meta",
+      "type": "object"
+    }
+  },
+  "required": [
+    "people"
+  ],
+  "title": "PoseFile",
+  "type": "object"
+}
