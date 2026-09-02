@@ -1,0 +1,14 @@
+version: 1
+poses:
+- name: looking-down-phone
+  path: looking-down-phone
+  description: 站立低头看手机，双手于身前持机，右手食指点按屏幕
+  tags:
+  - daily
+  - head-down
+  - phone
+  - standing
+  canvas:
+  - 512
+  - 512
+  people: 1
