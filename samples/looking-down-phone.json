@@ -1,0 +1,121 @@
+{
+  "_meta": {
+    "format": "DWPose/OpenPose 133-keypoint (compatible)",
+    "description": "一个人低头看手机，单帧静态姿态",
+    "version": "1.0",
+    "created": "2026-09-03",
+    "canvas_width": 512,
+    "canvas_height": 512,
+    "coordinate_system": "像素坐标，原点左上角，y 轴向下"
+  },
+
+  "people": [
+    {
+      "person_id": 0,
+      "pose_keypoints_2d": [
+        // 0  鼻子（nose）——低头时位置略低于脸部正中
+        {"id": 0, "name": "nose", "x": 256, "y": 180, "confidence": 0.95},
+
+        // 1-2 眼睛 —— 在鼻子两侧略上方（低头时眼朝下）
+        {"id": 1, "name": "left_eye", "x": 248, "y": 175, "confidence": 0.93},
+        {"id": 2, "name": "right_eye", "x": 264, "y": 175, "confidence": 0.93},
+
+        // 3-4 耳朵 —— 在眼睛两侧
+        {"id": 3, "name": "left_ear", "x": 232, "y": 178, "confidence": 0.85},
+        {"id": 4, "name": "right_ear", "x": 280, "y": 178, "confidence": 0.85},
+
+        // 5-6 肩膀 —— 正常水平，但微抬（拿手机时肩会轻微耸起）
+        {"id": 5, "name": "left_shoulder", "x": 195, "y": 235, "confidence": 0.96},
+        {"id": 6, "name": "right_shoulder", "x": 317, "y": 235, "confidence": 0.96},
+
+        // 7-8 肘部
+        // 右肘抬起（持手机手臂），角度大致 90° 弯曲
+        {"id": 7, "name": "left_elbow", "x": 180, "y": 300, "confidence": 0.92},
+        {"id": 8, "name": "right_elbow", "x": 340, "y": 280, "confidence": 0.94},
+
+        // 9-10 手腕
+        // 双手都在身前合拢：左手扶手机、右手操作屏幕
+        // 两只手腕在身体中线偏下，靠得很近
+        {"id": 9, "name": "left_wrist", "x": 248, "y": 340, "confidence": 0.90},
+        {"id": 10, "name": "right_wrist", "x": 268, "y": 345, "confidence": 0.90},
+
+        // 11-12 髋部 —— 正常站立
+        {"id": 11, "name": "left_hip", "x": 220, "y": 360, "confidence": 0.94},
+        {"id": 12, "name": "right_hip", "x": 292, "y": 360, "confidence": 0.94},
+
+        // 13-14 膝盖
+        {"id": 13, "name": "left_knee", "x": 215, "y": 440, "confidence": 0.92},
+        {"id": 14, "name": "right_knee", "x": 297, "y": 440, "confidence": 0.92},
+
+        // 15-16 脚踝
+        {"id": 15, "name": "left_ankle", "x": 210, "y": 500, "confidence": 0.90},
+        {"id": 16, "name": "right_ankle", "x": 302, "y": 500, "confidence": 0.90}
+      ],
+
+      "face_keypoints_2d": [
+        // 17-26 眉、眼、嘴轮廓（低头时整体压扁）
+        // 仅给关键锚点示意（完整版应含 68 个 face keypoints）
+        {"id": 17, "name": "left_eye_outer", "x": 240, "y": 174, "confidence": 0.90},
+        {"id": 18, "name": "left_eye_inner", "x": 252, "y": 174, "confidence": 0.90},
+        {"id": 19, "name": "right_eye_inner", "x": 260, "y": 174, "confidence": 0.90},
+        {"id": 20, "name": "right_eye_outer", "x": 272, "y": 174, "confidence": 0.90},
+        {"id": 21, "name": "left_mouth", "x": 250, "y": 200, "confidence": 0.88},
+        {"id": 22, "name": "right_mouth", "x": 262, "y": 200, "confidence": 0.88}
+      ],
+
+      "hand_left_keypoints_2d": [
+        // 23-33 左手关键点（扶手机，握持状态）
+        // 拇指、食指、中指捏住手机左侧
+        {"id": 23, "name": "left_hand_thumb_base", "x": 245, "y": 332, "confidence": 0.85},
+        {"id": 24, "name": "left_hand_thumb_tip", "x": 240, "y": 328, "confidence": 0.80},
+        {"id": 25, "name": "left_hand_index_base", "x": 250, "y": 335, "confidence": 0.85},
+        {"id": 26, "name": "left_hand_index_tip", "x": 247, "y": 340, "confidence": 0.80},
+        {"id": 27, "name": "left_hand_middle_base", "x": 252, "y": 338, "confidence": 0.85},
+        {"id": 28, "name": "left_hand_middle_tip", "x": 250, "y": 343, "confidence": 0.80},
+        {"id": 29, "name": "left_hand_ring_base", "x": 248, "y": 342, "confidence": 0.80},
+        {"id": 30, "name": "left_hand_pinky_base", "x": 244, "y": 345, "confidence": 0.75},
+        {"id": 31, "name": "left_hand_wrist_inner", "x": 248, "y": 340, "confidence": 0.90}
+      ],
+
+      "hand_right_keypoints_2d": [
+        // 34-44 右手关键点（食指点击屏幕）
+        // 食指伸出，其他手指弯曲（点击姿态）
+        {"id": 34, "name": "right_hand_thumb_base", "x": 272, "y": 338, "confidence": 0.85},
+        {"id": 35, "name": "right_hand_thumb_tip", "x": 275, "y": 334, "confidence": 0.80},
+        {"id": 36, "name": "right_hand_index_base", "x": 268, "y": 340, "confidence": 0.85},
+        {"id": 37, "name": "right_hand_index_tip", "x": 263, "y": 350, "confidence": 0.82},
+        {"id": 38, "name": "right_hand_middle_base", "x": 270, "y": 342, "confidence": 0.85},
+        {"id": 39, "name": "right_hand_middle_tip", "x": 272, "y": 348, "confidence": 0.78},
+        {"id": 40, "name": "right_hand_ring_base", "x": 272, "y": 344, "confidence": 0.80},
+        {"id": 41, "name": "right_hand_pinky_base", "x": 274, "y": 346, "confidence": 0.75},
+        {"id": 42, "name": "right_hand_wrist_inner", "x": 268, "y": 345, "confidence": 0.90}
+      ],
+
+      "foot_keypoints_2d": [
+        // 45-50 脚部（站立姿态）
+        {"id": 45, "name": "left_foot_big_toe", "x": 210, "y": 508, "confidence": 0.70},
+        {"id": 46, "name": "left_foot_small_toe", "x": 215, "y": 506, "confidence": 0.65},
+        {"id": 47, "name": "left_foot_heel", "x": 210, "y": 500, "confidence": 0.70},
+        {"id": 48, "name": "right_foot_big_toe", "x": 302, "y": 508, "confidence": 0.70},
+        {"id": 49, "name": "right_foot_small_toe", "x": 297, "y": 506, "confidence": 0.65},
+        {"id": 50, "name": "right_foot_heel", "x": 302, "y": 500, "confidence": 0.70}
+      ]
+    }
+  ],
+
+  "_annotations": {
+    "keypose_features": [
+      "头部前倾约 30°（nose 位于脸部正中偏低）",
+      "双眼视线朝下（eye y 坐标 < nose y 坐标）",
+      "右肩微抬（持手机手臂）",
+      "双手在身前合拢（左右 wrist x 差距仅 20px）",
+      "右手食指伸出点击屏幕（其他手指弯曲）",
+      "躯干直立、髋部水平、肩部水平"
+    ],
+    "intended_use": [
+      "测试 ControlNet-OpenPose 能否识别'低头看手机'",
+      "测试 DWPose 反向校验：把这份 JSON 渲染成骨架图后用 DWPose 检测，应能还原接近的关键点",
+      "测试 git diff：复制一份改成'抬头看天'，diff 应该能精确指出 nose/eye/wrist 的坐标变化"
+    ]
+  }
+}
