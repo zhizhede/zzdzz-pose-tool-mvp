@@ -1,0 +1,38 @@
+#!/usr/bin/env bash
+# commit-msg 钩子：校验 Conventional Commits 前缀 + 中文 subject
+# 检查项：① type(scope): 前缀合法 ② subject 中文开头 ③ subject ≤ 50 字符 ④ 不以句号结尾
+set -e
+
+MSG_FILE="$1"
+SUBJECT=$(head -n1 "$MSG_FILE")
+
+# 1. 必须带合法的 <type>(<scope>): 前缀
+if ! printf '%s' "$SUBJECT" | grep -qE '^(feat|fix|docs|style|refactor|perf|test|chore|build|ci|revert)(\([a-z0-9-]+\))?: '; then
+  echo "❌ 缺少合法的 <type>(<scope>): 前缀，当前: $SUBJECT" >&2
+  echo "   type 固定取值: feat/fix/docs/style/refactor/perf/test/chore/build/ci/revert" >&2
+  exit 1
+fi
+
+# 2. subject（去掉前缀）必须以中文开头
+# \p{Han} 匹配汉字（Git Bash 的 grep -P 不解析 \xE4 十六进制转义，\p{Han} 实测可用）
+BODY=$(printf '%s' "$SUBJECT" | sed -E 's/^[a-z]+(\([a-z0-9-]+\))?: //')
+if ! printf '%s' "$BODY" | grep -qP '^\p{Han}'; then
+  echo "❌ subject 必须以中文开头，当前: $BODY" >&2
+  echo "   示例: feat(poses): 新增低头看手机姿态资产" >&2
+  exit 1
+fi
+
+# 3. subject 长度 ≤ 50（wc -m 按字符计数，中文算 1）
+LEN=$(printf '%s' "$BODY" | wc -m | tr -d ' ')
+if [ "$LEN" -gt 50 ]; then
+  echo "❌ subject 过长（$LEN > 50 字符）: $BODY" >&2
+  exit 1
+fi
+
+# 4. 不以句号结尾（中英文都算）
+case "$BODY" in
+  *。|*.)
+    echo "❌ subject 不应以句号结尾: $BODY" >&2
+    exit 1
+    ;;
+esac
