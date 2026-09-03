@@ -30,6 +30,7 @@
 | `diff` | 语义 diff（`src/pose_tool/diff.py`） |
 | `cli` | 命令行与批量/索引（`cli.py`、`batch.py`、`library.py`） |
 | `poses` | 姿态资产库内容（`poses/` 下 pose.json / meta.yaml / preview.png / index.yaml） |
+| `webui` | Web 前端（`webui/` 下 Vue 组件与构建产物） |
 | `git` | 提交规约、钩子、.gitignore |
 | `build` | pyproject / 依赖 / 打包 |
 

@@ -19,7 +19,8 @@ function drawPreview(pose: PoseFile) {
   if (previewCanvas.value) drawPose(previewCanvas.value, pose)
 }
 
-watch(resultPose, (p) => { if (p) drawPreview(p) })
+// flush: 'post' —— 结果画布由 v-if 条件渲染，必须等 DOM 挂载后再绘制
+watch(resultPose, (p) => { if (p) drawPreview(p) }, { flush: 'post' })
 
 onMounted(async () => {
   const r = await fetch('/api/recognize/status')

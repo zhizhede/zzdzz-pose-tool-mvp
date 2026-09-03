@@ -5,7 +5,8 @@ __pycache__/
 venv/
 .pytest_cache/
 *.egg-info/
-dist/
+# Python 构建产物（仅根目录；webui/dist 是前端构建产物，需要入库）
+/dist/
 build/
 
 # 本地私密配置（API 密钥等），永不入库
