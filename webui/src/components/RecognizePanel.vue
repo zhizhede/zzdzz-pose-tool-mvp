@@ -66,9 +66,19 @@ function loadIntoEditor() {
 
 async function saveToLibrary() {
   if (!resultPose.value) return
-  const ok = await saveAs(resultName.value || `recognized-${Date.now()}`, 'AI 识图草稿')
-  message.value = ok ? '已保存入库，可在左侧列表找到' : '保存失败'
-  if (ok) await refreshList()
+  // 显式传入识别结果：不依赖编辑器状态（用户可能没有先「载入编辑器」）
+  const ok = await saveAs(
+    resultName.value || `recognized-${Date.now()}`,
+    'AI 识图草稿',
+    resultPose.value,
+  )
+  message.value = ok
+    ? '已保存入库，可在左侧列表找到'
+    : '保存失败（可能重名，换一个名称再试）'
+  if (ok) {
+    await refreshList()
+    resultName.value = `recognized-${new Date().toISOString().slice(5, 16).replace(/[-T:]/g, '')}`
+  }
 }
 </script>
 

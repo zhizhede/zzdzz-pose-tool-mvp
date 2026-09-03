@@ -90,8 +90,11 @@ export async function saveCurrent(): Promise<boolean> {
   return true
 }
 
-export async function saveAs(name: string, description = ''): Promise<boolean> {
-  const pose = store.current
+export async function saveAs(
+  name: string,
+  description = '',
+  pose: PoseFile | null = store.current,
+): Promise<boolean> {
   if (!pose) return false
   const r = await fetch('/api/poses', {
     method: 'POST',
