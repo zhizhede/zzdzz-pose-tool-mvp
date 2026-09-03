@@ -38,7 +38,17 @@ def test_tpose_straight_arms():
     assert abs(angles["right_elbow"] - 180.0) < 1.0
     assert abs(angles["left_elbow"] - 180.0) < 1.0
     assert abs(angles["right_shoulder"] - 90.0) < 1.0
+    assert abs(angles["torso_tilt_deg"]) < 1.0  # T-pose 躯干竖直
     assert abs(angles["head_tilt_deg"]) < 30.0
+
+
+def test_sample_standing_torso_upright():
+    """低头看手机样例：站立姿态，躯干应接近竖直。"""
+    from pose_tool.schema import load_pose
+
+    pose = load_pose(SAMPLE)
+    angles = compute_joint_angles(pose)
+    assert angles["torso_tilt_deg"] == pytest.approx(0.0, abs=0.5)
 
 
 def test_bent_elbow_less_than_90():

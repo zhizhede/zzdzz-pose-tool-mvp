@@ -19,6 +19,7 @@ const options = computed(() => store.poses.map((p) => p.name))
 
 const DERIVED_LABELS: Record<string, string> = {
   head_down_ratio: '低头程度（nose 相对 neck 下移量 / 肩宽）',
+  torso_tilt_deg: '躯干倾角（度）',
   shoulder_tilt_deg: '肩部倾斜角（度）',
   hands_gap_px: '两手腕间距（px）',
 }

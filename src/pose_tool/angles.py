@@ -32,6 +32,7 @@ _JOINT_LABELS = {
     "left_hip": "左髋",
     "right_knee": "右膝",
     "left_knee": "左膝",
+    "torso_tilt_deg": "躯干倾角（相对竖直）",
     "head_tilt_deg": "头部倾斜（相对竖直方向）",
 }
 
@@ -61,6 +62,18 @@ def compute_joint_angles(pose: PoseFile, person_index: int = 0) -> dict[str, Opt
             result[name] = None
             continue
         result[name] = round(_angle_deg(pt(i)[:2], pt(j)[:2], pt(k)[:2]), 1)
+
+    # 躯干倾角：双髋中点 → neck 相对竖直方向的偏角（0° 站立，90° 水平躺卧）
+    neck = pt(1)
+    l_hip, r_hip = pt(11), pt(8)
+    if neck[2] > 0 and l_hip[2] > 0 and r_hip[2] > 0:
+        mid_x = (l_hip[0] + r_hip[0]) / 2
+        mid_y = (l_hip[1] + r_hip[1]) / 2
+        result["torso_tilt_deg"] = round(_angle_deg(
+            (mid_x, mid_y - 100), (mid_x, mid_y), neck[:2]
+        ), 1)
+    else:
+        result["torso_tilt_deg"] = None
 
     # 头部倾斜：neck→nose 相对竖直向上方向的偏角
     nose, neck = pt(0), pt(1)

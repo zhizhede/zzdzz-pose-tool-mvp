@@ -146,6 +146,7 @@ export const JOINT_LABELS: Record<string, string> = {
   right_shoulder: '右肩', left_shoulder: '左肩',
   right_hip: '右髋', left_hip: '左髋',
   right_knee: '右膝', left_knee: '左膝',
+  torso_tilt_deg: '躯干倾角',
   head_tilt_deg: '头部倾斜',
 }
 
@@ -169,9 +170,19 @@ export function computeAngles(pose: PoseFile, personIndex = 0): AngleMap {
     if (a[2] <= 0 || b[2] <= 0 || c[2] <= 0) { out[name] = null; continue }
     out[name] = Math.round(angleDeg(a[0], a[1], b[0], b[1], c[0], c[1]) * 10) / 10
   }
-  const nose = kps[0], neck = kps[1]
-  out.head_tilt_deg = nose[2] > 0 && neck[2] > 0
-    ? Math.round(angleDeg(nose[0], nose[1] - 100, neck[0], neck[1], nose[0], nose[1]) * 10) / 10
+  const nk = kps[1]
+  out.torso_tilt_deg = null
+  {
+    const lh = kps[11], rh = kps[8]
+    if (lh[2] > 0 && rh[2] > 0 && nk[2] > 0) {
+      const mx = (lh[0] + rh[0]) / 2
+      const my = (lh[1] + rh[1]) / 2
+      out.torso_tilt_deg = Math.round(angleDeg(mx, my - 100, mx, my, nk[0], nk[1]) * 10) / 10
+    }
+  }
+  const nose = kps[0]
+  out.head_tilt_deg = nose[2] > 0 && nk[2] > 0
+    ? Math.round(angleDeg(nose[0], nose[1] - 100, nk[0], nk[1], nose[0], nose[1]) * 10) / 10
     : null
   return out
 }

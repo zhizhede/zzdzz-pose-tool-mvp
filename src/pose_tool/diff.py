@@ -20,10 +20,20 @@ def _derived_features(kps: np.ndarray) -> dict[str, float]:
     nose, neck = kps[0], kps[1]
     l_shoulder, r_shoulder = kps[5], kps[2]
     l_wrist, r_wrist = kps[7], kps[4]
+    l_hip, r_hip = kps[11], kps[8]
     shoulder_width = max(abs(r_shoulder[0] - l_shoulder[0]), 1.0)
+
+    # 躯干倾角：双髋中点 → neck 相对竖直（与 angles.py 同一定义）
+    mid_x = (l_hip[0] + r_hip[0]) / 2
+    mid_y = (l_hip[1] + r_hip[1]) / 2
+    v = (neck[0] - mid_x, neck[1] - mid_y)
+    v_len = max(math.hypot(*v), 1e-9)
+    torso_tilt = math.degrees(math.acos(max(-1.0, min(1.0, (-100 * v[1]) / (100 * v_len)))))
+
     return {
         # 越大表示头垂得越低
         "head_down_ratio": float((nose[1] - neck[1]) / shoulder_width),
+        "torso_tilt_deg": float(torso_tilt),
         "shoulder_tilt_deg": float(
             math.degrees(math.atan2(r_shoulder[1] - l_shoulder[1], r_shoulder[0] - l_shoulder[0]))
         ),
@@ -33,6 +43,7 @@ def _derived_features(kps: np.ndarray) -> dict[str, float]:
 
 DERIVED_FEATURE_LABELS = {
     "head_down_ratio": "低头程度（nose 相对 neck 下移量 / 肩宽）",
+    "torso_tilt_deg": "躯干倾角（度）",
     "shoulder_tilt_deg": "肩部倾斜角（度）",
     "hands_gap_px": "两手腕间距（px）",
 }
