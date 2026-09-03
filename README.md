@@ -54,6 +54,18 @@ pose recognize photo.png -o poses/from-photo/pose.json --angles-out angles.json
 - MLLM 对骨架/剪影类图片会系统性颠倒左右——目视确认后加 `--swap-left-right` 重新识别或对已有结果调用 `pose_tool.recognize.swap_left_right` 修正
 - 识别结果是**草稿**（实测髋/膝误差 5~15px，手臂 25~60px，头部簇可达 60px），入库前建议 `pose render` 目视核对并微调
 
+## Web 界面
+
+```bash
+pose web          # http://127.0.0.1:7860（仅监听本机）
+```
+
+四个功能区：**姿态库**（列表/搜索/预览）、**编辑器**（画布拖拽关键点、实时关节角度、保存自动重渲预览）、**AI 识图**（上传图片→模型识别→微调→入库）、**对比**（双画布 + 语义 diff 报告）。
+
+- 前端源码在 `webui/`（Vue 3 + Vite + TS）；构建产物 `webui/dist` 已入库，Python 用户免 Node
+- 改前端：`cd webui && npm install && npm run dev`（/api 代理到 7860）
+- 识别密钥只在服务端 `config.local.yaml`，浏览器与 API 响应均不可见
+
 ## 测试
 
 ```bash
