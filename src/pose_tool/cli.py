@@ -7,9 +7,11 @@ from pathlib import Path
 
 import typer
 
+from .angles import compute_joint_angles, format_angles
 from .batch import batch_render
 from .diff import diff_poses, format_report
 from .library import write_index
+from .recognize import DEFAULT_CONFIG_PATH, load_recognize_config, recognize_image
 from .render import render_to_png
 from .schema import export_json_schema, load_pose
 
@@ -62,6 +64,50 @@ def index_cmd(
     """扫描姿态库并重建 index.yaml。"""
     out = write_index(poses_dir)
     typer.echo(f"索引已更新 → {out}")
+
+
+@app.command("angles")
+def angles_cmd(
+    pose_path: Path = typer.Argument(..., exists=True, dir_okay=False, help="pose.json 路径"),
+    person: int = typer.Option(0, "--person", help="计算第几个人"),
+    json_output: bool = typer.Option(False, "--json", help="以 JSON 输出"),
+) -> None:
+    """计算姿态的关节角度（骨骼角度）表。"""
+    angles = compute_joint_angles(load_pose(pose_path), person_index=person)
+    if json_output:
+        typer.echo(json.dumps(angles, ensure_ascii=False, indent=2))
+    else:
+        typer.echo(format_angles(angles))
+
+
+@app.command("recognize")
+def recognize_cmd(
+    image: Path = typer.Argument(..., exists=True, dir_okay=False, help="输入图片（照片或骨架图）"),
+    output: Path = typer.Option(..., "--output", "-o", help="输出的 pose.json 路径"),
+    config_path: Path = typer.Option(
+        Path(DEFAULT_CONFIG_PATH), "--config", help="识别配置文件（含 API 密钥，不入库）"
+    ),
+    angles_out: Path = typer.Option(None, "--angles-out", help="可选：骨骼角度 JSON 输出路径"),
+    swap_sides: bool = typer.Option(
+        False, "--swap-left-right", help="识别后互换左右标签（修正 MLLM 的左右颠倒）"
+    ),
+) -> None:
+    """AI 识图：视觉模型识别图片中的姿态，导出 pose.json 与骨骼角度。"""
+    config = load_recognize_config(config_path)
+    typer.echo(f"使用模型 {config['model']} 分析图片 {image} ...")
+    pose = recognize_image(image, config, swap_sides=swap_sides)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_text(pose.model_dump_json(indent=2), encoding="utf-8")
+    typer.echo(f"识别结果已保存 → {output}")
+    typer.echo("识别到的关节角度：")
+    typer.echo(format_angles(compute_joint_angles(pose)))
+    if angles_out:
+        angles_out.parent.mkdir(parents=True, exist_ok=True)
+        angles_out.write_text(
+            json.dumps(compute_joint_angles(pose), ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+        typer.echo(f"角度数据已保存 → {angles_out}")
 
 
 @app.command("schema")

@@ -1,0 +1,9 @@
+# MiniMax 视觉识别本地配置模板
+# 复制为 config.local.yaml 并填入真实密钥。
+# config.local.yaml 已被 .gitignore 排除，不会被提交到 git。
+
+provider: minimax
+model: MiniMax-M3
+api_base: https://api.minimaxi.com/v1
+api_key: sk-xxxxxxxxxxxxxxxx
+timeout_seconds: 120

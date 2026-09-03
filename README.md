@@ -39,6 +39,21 @@ pose schema                                             # 导出 schemas/pose.sc
 
 骨架图的颜色表、肢体连接、线宽、模糊参数与 `controlnet_aux.util.draw_bodypose` 一致——ControlNet-OpenPose 是在这套视觉分布上训练的。
 
+## AI 识图：从图片提取姿态
+
+用视觉大模型（MiniMax 等，OpenAI 兼容接口）识别图片中的人物姿态，导出 pose.json 与骨骼角度：
+
+```bash
+cp config.example.yaml config.local.yaml   # 填入 API 密钥（此文件被 .gitignore 排除，永不入库）
+pose recognize photo.png -o poses/from-photo/pose.json --angles-out angles.json
+```
+
+左右约定与已知限制：
+
+- 本项目 pose.json 统一采用**观察者视角**左右约定（画面左侧 = `left_*`）
+- MLLM 对骨架/剪影类图片会系统性颠倒左右——目视确认后加 `--swap-left-right` 重新识别或对已有结果调用 `pose_tool.recognize.swap_left_right` 修正
+- 识别结果是**草稿**（实测髋/膝误差 5~15px，手臂 25~60px，头部簇可达 60px），入库前建议 `pose render` 目视核对并微调
+
 ## 测试
 
 ```bash
