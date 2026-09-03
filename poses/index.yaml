@@ -12,3 +12,35 @@ poses:
   - 512
   - 512
   people: 1
+- name: recognized-09031709
+  path: recognized-09031709
+  description: AI 识图草稿
+  tags: []
+  canvas:
+  - 512
+  - 512
+  people: 1
+- name: recognized-09031713
+  path: recognized-09031713
+  description: AI 识图草稿
+  tags: []
+  canvas:
+  - 512
+  - 512
+  people: 1
+- name: recognized-09031732
+  path: recognized-09031732
+  description: AI 识图草稿
+  tags: []
+  canvas:
+  - 512
+  - 512
+  people: 1
+- name: recognized-0904tree
+  path: recognized-0904tree
+  description: AI 识图草稿
+  tags: []
+  canvas:
+  - 512
+  - 512
+  people: 1
