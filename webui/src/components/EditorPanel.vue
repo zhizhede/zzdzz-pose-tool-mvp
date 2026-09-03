@@ -28,6 +28,38 @@ async function onSaveAs() {
   showSaveAs.value = false
   saveAsName.value = ''
 }
+
+async function copyJson() {
+  if (!store.current) return
+  try {
+    await navigator.clipboard.writeText(JSON.stringify(store.current, null, 2))
+    message.value = '姿态 JSON 已复制到剪贴板'
+  } catch {
+    message.value = '复制失败：浏览器拒绝了剪贴板访问'
+  }
+}
+
+async function downloadPng() {
+  if (!store.current) return
+  // 走服务端渲染：与 controlnet_aux 训练分布一致的成品图，而不是画布截图
+  const r = await fetch('/api/render', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(store.current),
+  })
+  if (!r.ok) {
+    message.value = '渲染失败'
+    return
+  }
+  const blob = await r.blob()
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `${store.currentName || 'pose'}.png`
+  a.click()
+  URL.revokeObjectURL(url)
+  message.value = '骨架 PNG 已下载'
+}
 </script>
 
 <template>
@@ -39,6 +71,8 @@ async function onSaveAs() {
       <strong>{{ store.currentName }}</strong>
       <span v-if="store.dirty" title="有未保存修改"><span class="dirty-dot"></span>未保存</span>
       <span style="flex: 1"></span>
+      <button class="ghost" @click="copyJson">复制 JSON</button>
+      <button class="ghost" @click="downloadPng">下载 PNG</button>
       <button class="ghost" @click="showSaveAs = !showSaveAs">另存为…</button>
       <button class="primary" :disabled="!store.dirty || saving" @click="onSave">
         {{ saving ? '保存中…' : '保存' }}
