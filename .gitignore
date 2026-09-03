@@ -8,6 +8,9 @@ venv/
 dist/
 build/
 
+# 本地私密配置（API 密钥等），永不入库
+config.local.yaml
+
 # 批量渲染产物（姿态库里的 preview.png 才是提交对象）
 renders/
 
