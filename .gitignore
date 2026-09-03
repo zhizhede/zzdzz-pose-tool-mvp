@@ -14,6 +14,9 @@ config.local.yaml
 # 批量渲染产物（姿态库里的 preview.png 才是提交对象）
 renders/
 
+# 前端依赖（构建产物 webui/dist 提交入库，Python 用户免 Node）
+webui/node_modules/
+
 # 编辑器
 .vscode/
 .idea/

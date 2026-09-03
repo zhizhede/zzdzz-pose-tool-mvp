@@ -110,6 +110,20 @@ def recognize_cmd(
         typer.echo(f"角度数据已保存 → {angles_out}")
 
 
+@app.command("web")
+def web_cmd(
+    host: str = typer.Option("127.0.0.1", "--host", help="监听地址，默认仅本机"),
+    port: int = typer.Option(7860, "--port", help="监听端口"),
+) -> None:
+    """启动 Web 界面（姿态库 / 画布编辑器 / AI 识图 / 对比）。"""
+    import uvicorn
+
+    from .webapp import create_app
+
+    typer.echo(f"zzdzz-pose-tool Web 界面 → http://{host}:{port}")
+    uvicorn.run(create_app(), host=host, port=port, log_level="warning")
+
+
 @app.command("schema")
 def schema_cmd(
     output: Path = typer.Option(Path("schemas/pose.schema.json"), "--output", "-o"),
