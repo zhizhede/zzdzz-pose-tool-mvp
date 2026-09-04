@@ -2,7 +2,9 @@
 import { ref } from 'vue'
 import PoseCanvas from './PoseCanvas.vue'
 import AnglesTable from './AnglesTable.vue'
+import { BODY_KEYPOINT_NAMES, computeAngles, keypointsOf } from '../lib/skeleton'
 import { saveAs, saveCurrent, store } from '../stores/pose'
+import type { PoseFile } from '../types'
 
 const saving = ref(false)
 const message = ref('')
@@ -32,10 +34,61 @@ async function onSaveAs() {
 async function copyJson() {
   if (!store.current) return
   try {
-    await navigator.clipboard.writeText(JSON.stringify(store.current, null, 2))
-    message.value = '姿态 JSON 已复制到剪贴板'
+    // 带语义包装：关键点名称映射 + 规则式姿态摘要，
+    // 让 LLM/程序拿到的不只是裸数字（生图模型仍只认骨架 PNG）
+    const wrapped = withSemanticMeta(store.current)
+    await navigator.clipboard.writeText(JSON.stringify(wrapped, null, 2))
+    message.value = '姿态 JSON（含关键点名称与姿态摘要）已复制到剪贴板'
   } catch {
     message.value = '复制失败：浏览器拒绝了剪贴板访问'
+  }
+}
+
+/** 规则式姿态摘要：从角度特征推导姿势类型，中英双语 */
+function withSemanticMeta(pose: PoseFile): PoseFile {
+  const angles = computeAngles(pose)
+  const kps = keypointsOf(pose.people[0])
+  const visible = kps.filter((k) => k[2] > 0).length
+  const parts: string[] = []
+  const partsEn: string[] = []
+
+  const tilt = angles.torso_tilt_deg ?? 0
+  if (tilt < 30) { parts.push('躯干直立'); partsEn.push('upright torso') }
+  else if (tilt < 60) { parts.push('躯干前倾'); partsEn.push('leaning torso') }
+  else { parts.push('躯干接近水平（躺/卧姿态）'); partsEn.push('torso near horizontal (lying)') }
+
+  const kneeL = angles.left_knee_deg ?? 180, kneeR = angles.right_knee_deg ?? 180
+  if (kneeL < 120 || kneeR < 120) {
+    parts.push(`屈膝（左 ${kneeL.toFixed(0)}° / 右 ${kneeR.toFixed(0)}°）`)
+    partsEn.push(`bent knees (L ${kneeL.toFixed(0)}° / R ${kneeR.toFixed(0)}°)`)
+  }
+  const hipL = angles.left_hip_deg ?? 180, hipR = angles.right_hip_deg ?? 180
+  if (hipL < 100 && hipR < 100) {
+    parts.push('双髋屈曲（坐姿/蹲姿特征）')
+    partsEn.push('hips flexed (sitting/crouching)')
+  }
+  const wL = angles.left_elbow_deg ?? 180, wR = angles.right_elbow_deg ?? 180
+  if (wL < 120 || wR < 120) {
+    parts.push('手臂弯曲')
+    partsEn.push('arms bent')
+  }
+
+  const desc =
+    `结构化姿态数据：OpenPose COCO-18 关键点，共 ${visible}/18 可见，单位像素，画布 ${pose.canvas_width}×${pose.canvas_height}。` +
+    `自动姿势判定：${parts.join('，') || '无显著特征'}。` +
+    `注意：此数据供 openpose-editor / ControlNet 渲染使用，生图请配合骨架图。`
+
+  const descEn = `Structured pose data: OpenPose COCO-18 keypoints (${visible}/18 visible), canvas ${pose.canvas_width}×${pose.canvas_height}. ` +
+    `Auto-detected pose: ${partsEn.join(', ') || 'no strong features'}.`
+
+  return {
+    ...pose,
+    meta: {
+      ...pose.meta,
+      keypoint_names: BODY_KEYPOINT_NAMES,
+      auto_description: desc,
+      auto_description_en: descEn,
+    },
   }
 }
 
@@ -71,8 +124,8 @@ async function downloadPng() {
       <strong>{{ store.currentName }}</strong>
       <span v-if="store.dirty" title="有未保存修改"><span class="dirty-dot"></span>未保存</span>
       <span style="flex: 1"></span>
-      <button class="ghost" @click="copyJson">复制 JSON</button>
-      <button class="ghost" @click="downloadPng">下载 PNG</button>
+      <button class="ghost" title="导出姿态数值，供 openpose-editor / 程序 / 版本管理使用（生图 AI 不直接消费此格式）" @click="copyJson">复制 JSON（程序用）</button>
+      <button class="ghost" title="渲染骨架图并下载——这才是喂给 ControlNet 的控制信号" @click="downloadPng">下载骨架 PNG（喂 ControlNet）</button>
       <button class="ghost" @click="showSaveAs = !showSaveAs">另存为…</button>
       <button class="primary" :disabled="!store.dirty || saving" @click="onSave">
         {{ saving ? '保存中…' : '保存' }}
