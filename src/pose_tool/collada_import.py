@@ -154,8 +154,15 @@ def parse_collada(
     source: bytes | str | Path,
     frame: int = 0,
     canvas: int = CANVAS_DEFAULT,
+    projection: str = "real",
 ) -> tuple[PoseFile, list[str], int]:
-    """解析 Collada 骨骼动画，返回 (pose, warnings, 总关键帧数)。"""
+    """解析 Collada 骨骼动画，返回 (pose, warnings, 总关键帧数)。
+
+    projection="real"：真实比例投影——画布高度固定对应 190cm 世界身高，
+    脚底锚定画布底边。保留"臀部低=坐姿"的高度线索（包围盒归一化会抹掉它，
+    导致坐姿在 2D 上读起来像站立）。
+    projection="fit"：旧版包围盒适配。
+    """
     if isinstance(source, (bytes, bytearray)):
         root = ET.parse(BytesIO(source)).getroot()
     elif isinstance(source, str) and source.lstrip().startswith("<"):
@@ -212,21 +219,44 @@ def parse_collada(
     if missing:
         warnings.append(f"未映射到骨骼的标准点：{missing}（导入后为隐藏点，可在编辑器补）")
 
-    # 投影：y-up 世界 → 画布（y 翻转），按可见点包围盒缩放居中
-    raw = [(x, y) for x, y, z, c in slots if c > 0]
-    if raw:
-        xs, ys = [p[0] for p in raw], [p[1] for p in raw]
-        w, h = max(xs) - min(xs), max(ys) - min(ys)
-        scale = min(canvas * FIT_RATIO / w, canvas * FIT_RATIO / h) if w > 0 and h > 0 else 1.0
-        cx, cy = (max(xs) + min(xs)) / 2, (max(ys) + min(ys)) / 2
-        for i, (x, y, z, c) in enumerate(slots):
+    # 投影：y-up 世界 → 画布（y 翻转）
+    mapped_pts = [(x, y) for x, y, _z, c in slots if c > 0]
+    if not mapped_pts:
+        raise ValueError("骨骼动画存在但没有任何点映射成功")
+
+    if projection == "real":
+        xs = [p[0] for p in mapped_pts]
+        ys = [p[1] for p in mapped_pts]
+        h_world = max(ys) - min(ys)
+        w_world = max(xs) - min(xs)
+        ground = min(ys)
+        cx = (max(xs) + min(xs)) / 2
+        # 画布高度固定对应 190cm 世界身高；超宽/超高姿势按比例收缩
+        s = canvas / 190.0
+        if h_world > 0:
+            s = min(s, canvas * 0.98 / h_world)
+        if w_world > 0:
+            s = min(s, canvas * 0.92 / w_world)
+        for i, (x, y, _z, c) in enumerate(slots):
             if c <= 0:
                 continue
-            px = (x - cx) * scale + canvas / 2
-            py = canvas / 2 - (y - cy) * scale
-            slots[i] = (round(px, 1), round(py, 1), 0.0, c)  # type: ignore[misc]
+            px = canvas / 2 + (x - cx) * s
+            py = canvas - (y - ground) * s
+            slots[i] = (round(min(max(px, 0.0), canvas - 1.0), 1),
+                        round(min(max(py, 0.0), canvas - 1.0), 1), 0.0, c)  # type: ignore[misc]
+        warnings.append("真实比例投影：坐姿/蹲姿人物会明显偏矮，属预期（保留高度线索）")
     else:
-        raise ValueError("骨骼动画存在但没有任何点映射成功")
+        # 旧包围盒适配
+        xs = [p[0] for p in mapped_pts]
+        ys = [p[1] for p in mapped_pts]
+        w, h = max(xs) - min(xs), max(ys) - min(ys)
+        scale = min(canvas * 0.85 / w, canvas * 0.85 / h) if w > 0 and h > 0 else 1.0
+        cx, cy = (max(xs) + min(xs)) / 2, (max(ys) + min(ys)) / 2
+        for i, (x, y, _z, c) in enumerate(slots):
+            if c <= 0:
+                continue
+            slots[i] = (round((x - cx) * scale + canvas / 2, 1),
+                        round(canvas / 2 - (y - cy) * scale, 1), 0.0, c)  # type: ignore[misc]
 
     flat: list[float] = []
     for x, y, _z, c in slots:
