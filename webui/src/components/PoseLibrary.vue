@@ -1,10 +1,38 @@
 <script setup lang="ts">
-import { computed } from 'vue'
-import { deletePose, filteredPoses, newBlankPose, openPose, refreshList, store } from '../stores/pose'
+import { computed, ref } from 'vue'
+import { deletePose, filteredPoses, loadPoseObject, newBlankPose, openPose, refreshList, store } from '../stores/pose'
 
-defineEmits<{ (e: 'open'): void }>()
-
+const emit = defineEmits<{ (e: 'open'): void }>()
+const importInput = ref<HTMLInputElement | null>(null)
+const importing = ref(false)
 const list = computed(() => filteredPoses.value)
+
+async function onImportFile(f: File | undefined) {
+  if (!f) return
+  importing.value = true
+  try {
+    const body = new FormData()
+    body.append('file', f)
+    const r = await fetch('/api/import', { method: 'POST', body })
+    const data = await r.json().catch(() => ({}))
+    if (!r.ok) {
+      alert(`导入失败：${data.detail ?? r.statusText}`)
+      return
+    }
+    if (data.warnings?.length) alert('导入警告：\n' + data.warnings.join('\n'))
+    loadPoseObject(f.name.replace(/\.json$/i, ''), data.pose)
+    emit('open')
+  } finally {
+    importing.value = false
+    if (importInput.value) importInput.value.value = ''
+  }
+}
+
+function onImportDrop(e: DragEvent) {
+  e.preventDefault()
+  ;(e.currentTarget as HTMLElement).classList.remove('hover')
+  onImportFile(e.dataTransfer?.files[0])
+}
 
 async function onOpen(name: string) {
   await openPose(name)
@@ -26,6 +54,20 @@ function previewUrl(name: string): string {
       <input v-model="store.filter" type="text" placeholder="搜索名称 / 描述 / 标签…" />
       <button class="ghost" title="刷新列表" @click="refreshList()">↻</button>
     </div>
+
+    <button
+      class="ghost dropzone-mini"
+      :disabled="importing"
+      style="width: 100%; margin-top: 10px"
+      title="支持 openpose-editor JSON / COCO 标注 JSON"
+      @click="importInput?.click()"
+      @dragover.prevent="($event.currentTarget as HTMLElement).classList.add('hover')"
+      @dragleave.prevent="($event.currentTarget as HTMLElement).classList.remove('hover')"
+      @drop="onImportDrop"
+    >
+      {{ importing ? '导入中…' : '⤓ 导入 JSON（点击或拖入）' }}
+    </button>
+    <input ref="importInput" type="file" accept=".json,application/json" hidden @change="onImportFile(($event.target as HTMLInputElement).files?.[0])" />
 
     <div class="poses-list">
       <div

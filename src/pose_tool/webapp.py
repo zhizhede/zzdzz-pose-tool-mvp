@@ -155,6 +155,28 @@ def create_app() -> FastAPI:
             pose = recognize_image(upload, config, swap_sides=swap)
         return {"pose": pose.model_dump(), "angles": compute_joint_angles(pose)}
 
+    @app.post("/api/import")
+    async def import_pose(file: UploadFile = File(...)) -> dict[str, Any]:
+        import json as _json
+
+        from .importers import detect_and_parse
+
+        raw = await file.read()
+        try:
+            data = _json.loads(raw)
+        except _json.JSONDecodeError as e:
+            raise HTTPException(400, f"不是有效 JSON：{e}")
+        try:
+            pose, fmt, warnings = detect_and_parse(data)
+        except ValueError as e:
+            raise HTTPException(400, str(e))
+        return {
+            "format": fmt,
+            "pose": pose.model_dump(),
+            "warnings": warnings,
+            "angles": compute_joint_angles(pose),
+        }
+
     @app.delete("/api/poses/{name}")
     def delete_pose(name: str) -> dict[str, Any]:
         import shutil

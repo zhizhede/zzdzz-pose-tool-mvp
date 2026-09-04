@@ -110,6 +110,30 @@ def recognize_cmd(
         typer.echo(f"角度数据已保存 → {angles_out}")
 
 
+@app.command("import")
+def import_cmd(
+    file: Path = typer.Argument(..., exists=True, dir_okay=False, help="openpose-editor / COCO 标注 JSON"),
+    output: Path = typer.Option(None, "--output", "-o", help="输出的 pose.json 路径（默认 <原名>.pose.json）"),
+) -> None:
+    """导入外部姿态 JSON，归一化为本项目的 pose.json 格式。"""
+    import json as _json
+
+    from .importers import detect_and_parse
+
+    try:
+        data = _json.loads(file.read_text(encoding="utf-8"))
+    except _json.JSONDecodeError as e:
+        typer.echo(f"❌ 不是有效 JSON（{e}）。注意：不支持带 // 注释的 JSON 文件")
+        raise typer.Exit(1)
+    pose, fmt, warnings = detect_and_parse(data)
+    for w in warnings:
+        typer.echo(f"⚠ {w}")
+    target = output or file.with_suffix(".pose.json")
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(pose.model_dump_json(indent=2), encoding="utf-8")
+    typer.echo(f"识别为 {fmt}，已导出 → {target}")
+
+
 @app.command("web")
 def web_cmd(
     host: str = typer.Option("127.0.0.1", "--host", help="监听地址，默认仅本机"),

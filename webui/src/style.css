@@ -160,6 +160,12 @@ input:focus, select:focus { outline: none; border-color: var(--accent); }
 }
 .dropzone.hover { border-color: var(--accent); color: var(--accent); }
 
+.dropzone-mini {
+  border: 1px dashed var(--border);
+  border-radius: 6px;
+}
+.dropzone-mini.hover { border-color: var(--accent); color: var(--accent); }
+
 .diff-grid { display: flex; gap: 16px; flex-wrap: wrap; margin: 12px 0; }
 .diff-canvas { border: 1px solid var(--border); border-radius: 8px; }
 
