@@ -44,7 +44,7 @@ async function copyJson() {
   }
 }
 
-/** 规则式姿态摘要：从角度特征推导姿势类型，中英双语 */
+/** 规则式姿态摘要：从角度与关键点布局推导姿势特征，中英双语 */
 function withSemanticMeta(pose: PoseFile): PoseFile {
   const angles = computeAngles(pose)
   const kps = keypointsOf(pose.people[0])
@@ -73,6 +73,19 @@ function withSemanticMeta(pose: PoseFile): PoseFile {
     partsEn.push('arms bent')
   }
 
+  // 双臂平展检测：双腕接近肩部高度且横向越过肩线
+  if (kps.length >= 18) {
+    const lSho = kps[5], rSho = kps[2], lWri = kps[7], rWri = kps[4]
+    if ([lSho, rSho, lWri, rWri].every((k) => k[2] > 0)) {
+      const lSpread = Math.abs(lWri[1] - lSho[1]) < 50 && lWri[0] < lSho[0]
+      const rSpread = Math.abs(rWri[1] - rSho[1]) < 50 && rWri[0] > rSho[0]
+      if (lSpread && rSpread) {
+        parts.push('双臂水平展开')
+        partsEn.push('arms spread horizontally')
+      }
+    }
+  }
+
   const desc =
     `结构化姿态数据：OpenPose COCO-18 关键点，共 ${visible}/18 可见，单位像素，画布 ${pose.canvas_width}×${pose.canvas_height}。` +
     `自动姿势判定：${parts.join('，') || '无显著特征'}。` +
@@ -89,6 +102,25 @@ function withSemanticMeta(pose: PoseFile): PoseFile {
       auto_description: desc,
       auto_description_en: descEn,
     },
+  }
+}
+
+/** 生成配合骨架图使用的生图指令（用户需同时附上骨架 PNG） */
+async function copyGenInstruction() {
+  if (!store.current) return
+  const wrapped = withSemanticMeta(store.current)
+  const zh = wrapped.meta.auto_description ?? ''
+  const en = wrapped.meta.auto_description_en ?? ''
+  const instruction =
+    `请严格按照随附骨架图中的人物姿势，生成一张写实人物全身照。\n` +
+    `姿势要求（与骨架图一致）：${zh}\n` +
+    `Pose reference (match the attached skeleton exactly): ${en}\n` +
+    `要求：全身可见、姿势与骨架逐关节对应、不要自行改变动作；背景与服装可自由发挥。`
+  try {
+    await navigator.clipboard.writeText(instruction)
+    message.value = '生图指令已复制——下载骨架 PNG 后，把图片和这段指令一起发给生图 AI'
+  } catch {
+    message.value = '复制失败：浏览器拒绝了剪贴板访问'
   }
 }
 
@@ -125,6 +157,7 @@ async function downloadPng() {
       <span v-if="store.dirty" title="有未保存修改"><span class="dirty-dot"></span>未保存</span>
       <span style="flex: 1"></span>
       <button class="ghost" title="导出姿态数值，供 openpose-editor / 程序 / 版本管理使用（生图 AI 不直接消费此格式）" @click="copyJson">复制 JSON（程序用）</button>
+      <button class="ghost" title="生成配合骨架图使用的生图指令文案：下载骨架 PNG 后，连同这段指令一起发给多模态生图 AI" @click="copyGenInstruction">复制生图指令（配骨架图）</button>
       <button class="ghost" title="渲染骨架图并下载——这才是喂给 ControlNet 的控制信号" @click="downloadPng">下载骨架 PNG（喂 ControlNet）</button>
       <button class="ghost" @click="showSaveAs = !showSaveAs">另存为…</button>
       <button class="primary" :disabled="!store.dirty || saving" @click="onSave">
