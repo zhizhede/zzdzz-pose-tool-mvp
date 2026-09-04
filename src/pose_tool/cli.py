@@ -112,26 +112,35 @@ def recognize_cmd(
 
 @app.command("import")
 def import_cmd(
-    file: Path = typer.Argument(..., exists=True, dir_okay=False, help="openpose-editor / COCO 标注 JSON"),
+    file: Path = typer.Argument(..., exists=True, dir_okay=False, help="openpose/COCO JSON 或 Collada (.dae)"),
     output: Path = typer.Option(None, "--output", "-o", help="输出的 pose.json 路径（默认 <原名>.pose.json）"),
+    frame: int = typer.Option(0, "--frame", "-f", help="Collada 动画的帧号（0=第 0 关键帧，负数从末尾数）"),
 ) -> None:
-    """导入外部姿态 JSON，归一化为本项目的 pose.json 格式。"""
+    """导入外部姿态数据（JSON / .dae），归一化为本项目的 pose.json 格式。"""
     import json as _json
 
     from .importers import detect_and_parse
 
-    try:
-        data = _json.loads(file.read_text(encoding="utf-8"))
-    except _json.JSONDecodeError as e:
-        typer.echo(f"❌ 不是有效 JSON（{e}）。注意：不支持带 // 注释的 JSON 文件")
-        raise typer.Exit(1)
-    pose, fmt, warnings = detect_and_parse(data)
-    for w in warnings:
-        typer.echo(f"⚠ {w}")
+    if file.suffix.lower() == ".dae":
+        from .collada_import import parse_collada
+
+        pose, warnings, total = parse_collada(file, frame=frame)
+        for w in warnings:
+            typer.echo(f"⚠ {w}")
+    else:
+        try:
+            data = _json.loads(file.read_text(encoding="utf-8"))
+        except _json.JSONDecodeError as e:
+            typer.echo(f"❌ 不是有效 JSON（{e}）。注意：不支持带 // 注释的 JSON 文件")
+            raise typer.Exit(1)
+        pose, fmt, warnings = detect_and_parse(data)
+        for w in warnings:
+            typer.echo(f"⚠ {w}")
+
     target = output or file.with_suffix(".pose.json")
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(pose.model_dump_json(indent=2), encoding="utf-8")
-    typer.echo(f"识别为 {fmt}，已导出 → {target}")
+    typer.echo(f"已导出 → {target}")
 
 
 @app.command("web")

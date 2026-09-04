@@ -5,6 +5,7 @@ import { deletePose, filteredPoses, loadPoseObject, newBlankPose, openPose, refr
 const emit = defineEmits<{ (e: 'open'): void }>()
 const importInput = ref<HTMLInputElement | null>(null)
 const importing = ref(false)
+const daeFrame = ref(0)
 const list = computed(() => filteredPoses.value)
 
 async function onImportFile(f: File | undefined) {
@@ -13,6 +14,8 @@ async function onImportFile(f: File | undefined) {
   try {
     const body = new FormData()
     body.append('file', f)
+    const isDae = f.name.toLowerCase().endsWith('.dae')
+    if (isDae) body.append('frame', String(daeFrame.value))
     const r = await fetch('/api/import', { method: 'POST', body })
     const data = await r.json().catch(() => ({}))
     if (!r.ok) {
@@ -20,7 +23,8 @@ async function onImportFile(f: File | undefined) {
       return
     }
     if (data.warnings?.length) alert('导入警告：\n' + data.warnings.join('\n'))
-    loadPoseObject(f.name.replace(/\.json$/i, ''), data.pose)
+    const base = f.name.replace(/\.(json|dae)$/i, '')
+    loadPoseObject(isDae ? `${base}-f${daeFrame.value}` : base, data.pose)
     emit('open')
   } finally {
     importing.value = false
@@ -59,15 +63,20 @@ function previewUrl(name: string): string {
       class="ghost dropzone-mini"
       :disabled="importing"
       style="width: 100%; margin-top: 10px"
-      title="支持 openpose-editor JSON / COCO 标注 JSON"
+      title="支持 openpose-editor JSON / COCO 标注 JSON / Mixamo Collada (.dae)"
       @click="importInput?.click()"
       @dragover.prevent="($event.currentTarget as HTMLElement).classList.add('hover')"
       @dragleave.prevent="($event.currentTarget as HTMLElement).classList.remove('hover')"
       @drop="onImportDrop"
     >
-      {{ importing ? '导入中…' : '⤓ 导入 JSON（点击或拖入）' }}
+      {{ importing ? '导入中…' : '⤓ 导入 JSON / DAE（点击或拖入）' }}
     </button>
-    <input ref="importInput" type="file" accept=".json,application/json" hidden @change="onImportFile(($event.target as HTMLInputElement).files?.[0])" />
+    <div style="display: flex; gap: 6px; align-items: center; margin-top: 6px">
+      <label style="color: var(--text-dim); font-size: 12px; white-space: nowrap">.dae 帧号</label>
+      <input v-model.number="daeFrame" type="number" min="0" style="width: 80px" />
+      <span style="color: var(--text-dim); font-size: 11px">仅对 .dae 生效，一帧一个姿势</span>
+    </div>
+    <input ref="importInput" type="file" accept=".json,.dae,application/json" hidden @change="onImportFile(($event.target as HTMLInputElement).files?.[0])" />
 
     <div class="poses-list">
       <div

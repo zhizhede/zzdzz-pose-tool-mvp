@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import io
 import re
+import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import Any, Optional
 
@@ -156,12 +157,35 @@ def create_app() -> FastAPI:
         return {"pose": pose.model_dump(), "angles": compute_joint_angles(pose)}
 
     @app.post("/api/import")
-    async def import_pose(file: UploadFile = File(...)) -> dict[str, Any]:
+    async def import_pose(
+        file: UploadFile = File(...),
+        frame: int = Form(0),
+    ) -> dict[str, Any]:
         import json as _json
+        from pathlib import Path as _Path
 
         from .importers import detect_and_parse
 
         raw = await file.read()
+        ext = _Path(file.filename or "").suffix.lower()
+
+        if ext == ".dae":
+            from .collada_import import parse_collada
+
+            try:
+                pose, warnings, total = parse_collada(raw, frame=frame)
+            except ValueError as e:
+                raise HTTPException(400, str(e))
+            except ET.ParseError as e:
+                raise HTTPException(400, f"Collada XML 解析失败：{e}")
+            return {
+                "format": "collada",
+                "pose": pose.model_dump(),
+                "warnings": warnings,
+                "total_frames": total,
+                "angles": compute_joint_angles(pose),
+            }
+
         try:
             data = _json.loads(raw)
         except _json.JSONDecodeError as e:
