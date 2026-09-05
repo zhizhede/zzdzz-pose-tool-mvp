@@ -77,12 +77,25 @@ python tools/comfyui/run_openpose_test.py --pose <骨架PNG> --comfyui-root <Com
 | `--comfyui-root` | ✅ | 固定填 `E:/Program/zzdzz-ai/ComfyUI` |
 | `--out` | ✅ | **输出目录**（不是文件名！），图自动命名写入 |
 | `--prompt` | | 正向提示词：场景、人物、光线、画风。姿势与朝向不归它管（朝向按 pose.json 的 facing 自动追加） |
+| `--depth-strength` | | 深度 ControlNet 强度，默认 `0.7`（有深度图时生效） |
+| `--no-depth` | | 强制不用深度双控 |
 | `--strength` | | ControlNet 强度，默认 `1.0`。降低可让 AI 更自由（姿势可能漂移） |
 | `--seed` | | 随机种子。固定 = 可复现；换 = 同姿势不同人 |
 | `--host` | | ComfyUI 地址，默认 `http://127.0.0.1:8188` |
 
 **prompt 写法建议**：`主体 + 姿势一致的场景描述 + 光线/画风`。
 例：`"a man in a suit sitting on a park bench, autumn, golden hour, photorealistic"`。
+
+## 深度双控（openpose + depth）
+
+骨架图表达"关节在哪"，深度图表达"前后关系"——两者叠加是结构控制的最强组合：
+
+- **深度图来源**：pose.json 的 `pose_keypoints_3d` 字段（DAE 导入时的 3D 关节真值），渲染为 `preview_depth.png`（近亮远暗，与骨架图逐像素对位）
+- **自动启用**：生成脚本检测到骨架图同目录有 `preview_depth.png` 就自动走双控工作流（无需改命令）；`--no-depth` 可关闭，`--depth-strength`（默认 0.7）调节深度约束强度
+- **解决的问题**：四肢前后遮挡（跷二郎腿哪条腿在前）、身体转角（侧身 45°）、肢体交叠层次、透视缩短——这些是 2D 骨架在原理上无法表达的
+- 手动渲染深度图：`python -m pose_tool.cli render poses/<名字>/pose.json --output preview_depth.png --depth`
+
+实测对比（同命令同 seed）：单骨架时腿部姿态常有自由发挥；深度双控后小腿交叠的层次与数据一致。
 
 ## 朝向控制（正/背面）
 
