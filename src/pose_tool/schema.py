@@ -31,6 +31,9 @@ KEYPOINT_PART_COUNTS = {
 }
 
 
+FACE_FACING_VALUES = ("front", "back", "profile")
+
+
 class Person(BaseModel):
     """单个人物的关键点集合。"""
 
@@ -40,6 +43,16 @@ class Person(BaseModel):
     hand_left_keypoints_2d: Optional[list[float]] = None
     hand_right_keypoints_2d: Optional[list[float]] = None
     face_keypoints_2d: Optional[list[float]] = None
+    # 人物朝向（3D 导入时判定）：front=面向观察者 / back=背对 / profile=侧面。
+    # 可选字段，旧文件缺省即兼容；back 的骨架图不画五官点（见渲染约定）。
+    facing: Optional[str] = None
+
+    @field_validator("facing")
+    @classmethod
+    def _check_facing(cls, v: Optional[str]) -> Optional[str]:
+        if v is not None and v not in FACE_FACING_VALUES:
+            raise ValueError(f"facing 只能是 {'/'.join(FACE_FACING_VALUES)} 或缺省，实际 {v!r}")
+        return v
 
     @field_validator(*KEYPOINT_PART_COUNTS, check_fields=False)
     @classmethod

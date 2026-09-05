@@ -46,6 +46,81 @@ MINIMAL_DAE = """<?xml version="1.0" encoding="utf-8"?>
 """
 
 
+# 朝向判定夹具：Hips 携带绕 Y 轴三帧旋转（0°/90°/180°）+ Head 骨骼映射 slot 0
+FACE_DAE = """<?xml version="1.0" encoding="utf-8"?>
+<COLLADA xmlns="http://www.collada.org/2005/11/COLLADASchema" version="1.4.1">
+  <asset><unit name="centimeter" meter="0.01"/><up_axis>Y_UP</up_axis></asset>
+  <library_visual_scenes>
+    <visual_scene id="Scene">
+      <node id="Hips" name="mixamorig_Hips" type="JOINT">
+        <matrix sid="transform">1 0 0 0  0 1 0 100  0 0 1 0  0 0 0 1</matrix>
+        <node id="Neck" name="mixamorig_Neck" type="JOINT">
+          <matrix sid="transform">1 0 0 0  0 1 0 12  0 0 1 0  0 0 0 1</matrix>
+          <node id="Head" name="mixamorig_Head" type="JOINT">
+            <matrix sid="transform">1 0 0 0  0 1 0 10  0 0 1 0  0 0 0 1</matrix>
+          </node>
+        </node>
+      </node>
+    </visual_scene>
+  </library_visual_scenes>
+  <library_animations>
+    <animation id="Hips_anim">
+      <source id="times"><float_array id="times-arr" count="3">0 1 2</float_array></source>
+      <source id="output"><float_array id="output-arr" count="48">
+        1 0 0 0  0 1 0 0  0 0 1 0  0 0 0 1
+        0 0 1 0  0 1 0 0  -1 0 0 0  0 0 0 1
+        -1 0 0 0  0 1 0 0  0 0 -1 0  0 0 0 1
+      </float_array></source>
+      <sampler id="s">
+        <input semantic="INPUT" source="#times"/>
+        <input semantic="OUTPUT" source="#output"/>
+      </sampler>
+      <channel target="mixamorig_Hips/matrix" source="#s"/>
+    </animation>
+  </library_animations>
+  <scene><instance_visual_scene url="#Scene"/></scene>
+</COLLADA>
+"""
+
+
+def test_facing_front_profile_back():
+    p0, w0, _ = parse_collada(FACE_DAE, frame=0)
+    assert p0.people[0].facing == "front"
+    assert p0.people[0].keypoints("pose_keypoints_2d")[0][2] > 0  # 鼻子可见
+
+    p1, w1, _ = parse_collada(FACE_DAE, frame=1)
+    assert p1.people[0].facing == "profile"
+    assert p1.people[0].keypoints("pose_keypoints_2d")[0][2] > 0
+
+    p2, w2, _ = parse_collada(FACE_DAE, frame=2)
+    assert p2.people[0].facing == "back"
+    kps2 = p2.people[0].keypoints("pose_keypoints_2d")
+    # 背面：五官点全部隐藏（鼻 + 双眼 + 双耳）
+    assert all(kps2[i][2] == 0.0 for i in (0, 14, 15, 16, 17))
+    assert any("back" in w for w in w2)
+
+
+def test_facing_no_rotation_defaults_front():
+    # MINIMAL_DAE 无 Head/Neck 骨骼，回退 Hips；仅平移不改朝向 → 仍判 front
+    pose, _, _ = parse_collada(MINIMAL_DAE, frame=0)
+    assert pose.people[0].facing == "front"
+
+
+def test_schema_facing_validation():
+    from pydantic import ValidationError
+
+    from pose_tool.schema import PoseFile
+
+    base = {"canvas_width": 10, "canvas_height": 10,
+            "people": [{"pose_keypoints_2d": [0.0] * 54, "facing": "back"}]}
+    assert PoseFile.model_validate(base).people[0].facing == "back"
+    ok_none = PoseFile.model_validate({**base, "people": [{"pose_keypoints_2d": [0.0] * 54}]})
+    assert ok_none.people[0].facing is None
+    bad = {**base, "people": [{"pose_keypoints_2d": [0.0] * 54, "facing": "left"}]}
+    with pytest.raises(ValidationError):
+        PoseFile.model_validate(bad)
+
+
 def test_minimal_dae_fk_and_frame_selection():
     pose, warnings, total = parse_collada(MINIMAL_DAE, frame=0)
     assert total == 2

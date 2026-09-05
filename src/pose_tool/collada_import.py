@@ -150,6 +150,55 @@ def _collect_animations(root: ET.Element) -> dict[str, tuple[list[float], list[f
     return result
 
 
+def _rot_part(m: list[float]) -> list[list[float]]:
+    """世界矩阵的 3×3 旋转部分（行主序）。"""
+    return [
+        [m[0], m[4], m[8]],
+        [m[1], m[5], m[9]],
+        [m[2], m[6], m[10]],
+    ]
+
+
+def _mat_vec(r: list[list[float]], v: tuple[float, float, float]) -> tuple[float, float, float]:
+    return (
+        r[0][0] * v[0] + r[0][1] * v[1] + r[0][2] * v[2],
+        r[1][0] * v[0] + r[1][1] * v[1] + r[1][2] * v[2],
+        r[2][0] * v[0] + r[2][1] * v[1] + r[2][2] * v[2],
+    )
+
+
+_FACING_AXIS_POOL = ("head", "neck", "hips")
+# z 分量超过该阈值才判定正/背，否则视为侧面（约 11.5°）
+_FACING_Z_EPS = 0.2
+
+
+def _facing_for(bones: dict[str, "_Bone"], world_matrix) -> str | None:
+    """按 bind 姿态自标定朝向前向量，判定当前帧人物朝向。
+
+    返回 "front"（面向观察者 +Z）/ "back"（背对）/ "profile"（侧面）/ None（无法判定）。
+    """
+    for axis_bone in _FACING_AXIS_POOL:
+        bone = next((b for n, b in bones.items()
+                     if re.sub(r"^(mixamorig_|mixamorig:)", "", n, flags=re.IGNORECASE).lower() == axis_bone), None)
+        if bone is None:
+            continue
+        r_bind = _rot_part(world_matrix(bone, use_anim=False))
+        # bind 姿态下指向世界 +Z 的那个局部向量 = 朝向前向量的局部坐标
+        f_local = _mat_vec([list(c) for c in zip(*r_bind)], (0.0, 0.0, 1.0))
+        norm = math.sqrt(sum(v * v for v in f_local))
+        if norm < 1e-6:
+            continue
+        f_local = (f_local[0] / norm, f_local[1] / norm, f_local[2] / norm)
+        r_frame = _rot_part(world_matrix(bone, use_anim=True))
+        f_world = _mat_vec(r_frame, f_local)
+        if f_world[2] > _FACING_Z_EPS:
+            return "front"
+        if f_world[2] < -_FACING_Z_EPS:
+            return "back"
+        return "profile"
+    return None
+
+
 def parse_collada(
     source: bytes | str | Path,
     frame: int = 0,
@@ -188,7 +237,7 @@ def parse_collada(
     slots: list[tuple[float, float, float, float]] = [(0.0, 0.0, 0.0, 0.0)] * 18
     mapped: set[int] = set()
 
-    def world_position(bone: _Bone) -> tuple[float, float, float]:
+    def world_matrix(bone: _Bone, use_anim: bool = True) -> list[float]:
         m = [1.0, 0, 0, 0, 0, 1.0, 0, 0, 0, 0, 1.0, 0, 0, 0, 0, 1.0]
         chain: list[_Bone] = []
         cur: _Bone | None = bone
@@ -196,16 +245,20 @@ def parse_collada(
             chain.append(cur)
             cur = cur.parent
         for b in reversed(chain):
-            anim = animations.get(b.name)
             local = None
-            if anim is not None:
-                times, values = anim
-                if idx * 16 + 16 <= len(values):
-                    local = values[idx * 16: idx * 16 + 16]
+            if use_anim:
+                anim = animations.get(b.name)
+                if anim is not None:
+                    times, values = anim
+                    if idx * 16 + 16 <= len(values):
+                        local = values[idx * 16: idx * 16 + 16]
             if local is None:
                 local = b.static_matrix
             m = _mat_mul(m, local)
-        return _mat_translation(m)
+        return m
+
+    def world_position(bone: _Bone) -> tuple[float, float, float]:
+        return _mat_translation(world_matrix(bone))
 
     for name, bone in bones.items():
         slot = _slot_for(name)
@@ -214,6 +267,19 @@ def parse_collada(
         x, y, z = world_position(bone)
         slots[slot] = (x, y, z, CONF)  # type: ignore[misc]
         mapped.add(slot)
+
+    # 朝向判定：Mixamo bind 姿态角色面向世界 +Z，把 +Z 反算进 head 骨骼
+    # bind 局部系得到"朝向前向量"，再用当前帧 head 世界旋转转回世界系。
+    # 不依赖具体骨骼轴约定，绕 Y 转体/转身动画自然生效。
+    facing = _facing_for(bones, world_matrix)
+
+    if facing == "back":
+        # 模拟真实 OpenPose 对背面人体的输出：五官点不出现。
+        # ControlNet 训练分布里"无五官 = 背面"，生成端据此消歧正/反面。
+        for face_slot in (0, 14, 15, 16, 17):
+            x, y, z, c = slots[face_slot]
+            if c > 0:
+                slots[face_slot] = (x, y, z, 0.0)
 
     missing = [i for i in range(18) if i not in mapped]
     if missing:
@@ -262,13 +328,21 @@ def parse_collada(
     for x, y, _z, c in slots:
         flat.extend([float(x), float(y), float(c)])
 
+    person: dict[str, Any] = {"pose_keypoints_2d": flat}
+    if facing:
+        person["facing"] = facing
     pose = PoseFile.model_validate({
         "version": "0.2",
         "canvas_width": canvas,
         "canvas_height": canvas,
         "meta": {"source_format": "collada", "source_frame": idx},
-        "people": [{"pose_keypoints_2d": flat}],
+        "people": [person],
     })
     warnings.insert(0, f"该动画共 {total_frames} 关键帧，当前导入第 {idx} 帧（可换帧获得其他姿势）")
+    if facing:
+        warnings.append(
+            f"3D 朝向判定：{facing}"
+            + ("（已隐去五官点，生成时提示词建议加 back view）" if facing == "back" else "")
+        )
     warnings.append("左右为观察者视角约定，导入后请目视核对方向")
     return pose, warnings, total_frames
