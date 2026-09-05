@@ -145,7 +145,7 @@ async function copyGenInstruction() {
   }
 }
 
-/** 一键复制本地生成命令：--pose 指向当前入库姿势，用户只需换参考图/提示词 */
+/** 一键复制本地生成命令：后端自动填 --pose/--reference/--prompt（MiniMax 生成提示词） */
 async function copyGenCommand() {
   if (!store.current) return
   if (!store.currentName) {
@@ -156,20 +156,26 @@ async function copyGenCommand() {
     message.value = '有未保存的修改：请先点「保存」，再复制生成命令'
     return
   }
-  const cmd =
-    `cd E:\\Program\\JavaGuide\\Codes\\zzdzz-pose-tool; ` +
-    `python tools/comfyui/run_openpose_test.py ` +
-    `--pose poses/${store.currentName}/preview.png ` +
-    `--comfyui-root "E:/Program/zzdzz-ai/ComfyUI" ` +
-    `--out "C:\\Users\\ZZDZZ\\Downloads" ` +
-    `--reference "换成你的角色参考图.png" ` +
-    `--prompt "描述画面：人物、场景、风格" ` +
-    `--seed 42`
+  message.value = '正在生成命令（如有参考图，MiniMax 正在描述画面）…'
   try {
-    await navigator.clipboard.writeText(cmd)
-    message.value = '生成命令已复制：把 --reference 换成角色参考图、--prompt 改成想要的画面，粘贴到 PowerShell 回车即可'
+    const r = await fetch('/api/gen-command', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: store.currentName, use_minimax: true }),
+    })
+    const data = await r.json().catch(() => ({}))
+    if (!r.ok) {
+      message.value = `生成命令失败：${data.detail ?? r.statusText}`
+      return
+    }
+    await navigator.clipboard.writeText(data.command)
+    const src =
+      data.prompt_source === 'minimax' ? 'MiniMax 生成的提示词'
+      : data.prompt_source === 'minimax-cached' ? '缓存的 MiniMax 提示词'
+      : '规则兜底提示词（无参考图或 MiniMax 不可用）'
+    message.value = `生成命令已复制（${src}），粘贴到 PowerShell 回车即可出图`
   } catch {
-    message.value = '复制失败：浏览器拒绝了剪贴板访问'
+    message.value = '生成命令失败：无法连接后端服务'
   }
 }
 
@@ -207,7 +213,7 @@ async function downloadPng() {
       <span style="flex: 1"></span>
       <button class="ghost" title="导出姿态数值，供 openpose-editor / 程序 / 版本管理使用（生图 AI 不直接消费此格式）" @click="copyJson">复制 JSON（程序用）</button>
       <button class="ghost" title="复制生图指令文案：下载骨架 PNG 后，连同这段指令一起发给多模态生图 AI" @click="copyGenInstruction">复制生图指令（配骨架图）</button>
-      <button class="ghost" title="一键复制本地出图的完整命令（--pose 自动指向本姿势），粘贴到 PowerShell 即可生成" @click="copyGenCommand">复制生成命令（本地出图）</button>
+      <button class="ghost" title="一键复制本地出图的完整命令：--pose/--reference/--prompt 全部自动填好（有参考图时 MiniMax 自动写提示词），粘贴到 PowerShell 即可生成" @click="copyGenCommand">复制生成命令（本地出图）</button>
       <button class="ghost" title="渲染骨架图并下载——这才是喂给 ControlNet 的控制信号" @click="downloadPng">下载骨架 PNG（喂 ControlNet）</button>
       <button class="ghost" @click="showSaveAs = !showSaveAs">另存为…</button>
       <button class="primary" :disabled="!store.dirty || saving" @click="onSave">

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { deletePose, filteredPoses, loadPoseObject, newBlankPose, openPose, refreshList, store } from '../stores/pose'
+import { deletePose, filteredPoses, loadPoseObject, newBlankPose, openPose, refreshList, setSourceImage, store } from '../stores/pose'
 
 const emit = defineEmits<{ (e: 'open'): void }>()
 const importInput = ref<HTMLInputElement | null>(null)
@@ -23,7 +23,10 @@ async function onImportFile(f: File | undefined) {
       return
     }
     if (data.warnings?.length) alert('导入警告：\n' + data.warnings.join('\n'))
-    const base = f.name.replace(/\.(json|dae)$/i, '')
+    const isImage = /\.(jpe?g|png|webp|bmp)$/i.test(f.name)
+    // 图片导入的姿势记住原图：保存后自动作为角色参考图（reference.png）
+    setSourceImage(isImage && data.meta?.source_format === 'dwpose-image' ? f : null)
+    const base = f.name.replace(/\.(json|dae|jpe?g|png|webp|bmp)$/i, '')
     loadPoseObject(isDae ? `${base}-f${daeFrame.value}` : base, data.pose)
     emit('open')
   } finally {
