@@ -86,17 +86,23 @@ FACE_DAE = """<?xml version="1.0" encoding="utf-8"?>
 def test_facing_front_profile_back():
     p0, w0, _ = parse_collada(FACE_DAE, frame=0)
     assert p0.people[0].facing == "front"
-    assert p0.people[0].keypoints("pose_keypoints_2d")[0][2] > 0  # 鼻子可见
+    kps0 = p0.people[0].keypoints("pose_keypoints_2d")
+    # 正面：虚拟眼骨合成的面部五点全部可见（鼻 + 双眼 + 双耳）
+    assert all(kps0[i][2] > 0 for i in (0, 14, 15, 16, 17))
+    # 几何关系：正面像里右眼在图左侧（COCO 约定）
+    assert kps0[14][0] < kps0[15][0]
 
     p1, w1, _ = parse_collada(FACE_DAE, frame=1)
     assert p1.people[0].facing == "profile"
-    assert p1.people[0].keypoints("pose_keypoints_2d")[0][2] > 0
+    kps1 = p1.people[0].keypoints("pose_keypoints_2d")
+    # 侧面：远侧耳被头颅遮挡，恰见一耳
+    assert (kps1[16][2] > 0) != (kps1[17][2] > 0)
 
     p2, w2, _ = parse_collada(FACE_DAE, frame=2)
     assert p2.people[0].facing == "back"
     kps2 = p2.people[0].keypoints("pose_keypoints_2d")
-    # 背面：五官点全部隐藏（鼻 + 双眼 + 双耳）
-    assert all(kps2[i][2] == 0.0 for i in (0, 14, 15, 16, 17))
+    # 背面：鼻 + 双眼隐藏（耳廓在轮廓边缘仍可见，符合真实 OpenPose 行为）
+    assert all(kps2[i][2] == 0.0 for i in (0, 14, 15))
     assert any("back" in w for w in w2)
 
 
@@ -151,7 +157,8 @@ def test_capoeira_smoke():
     assert total == 103
     kps = pose.people[0].keypoints("pose_keypoints_2d")
     visible = [k for k in kps if k[2] > 0]
-    assert len(visible) == 14  # 身体 14 点全映射，眼耳 4 点无骨骼留隐藏
+    # 身体 12 肢体点 + 颈 + 面部五点合成（虚拟眼骨）= 18 点全可见
+    assert len(visible) == 18
     for x, y, c in visible:
         assert 0 <= x <= 511 and 0 <= y <= 511
     assert any("103" in w for w in warnings)

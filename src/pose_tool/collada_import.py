@@ -167,36 +167,102 @@ def _mat_vec(r: list[list[float]], v: tuple[float, float, float]) -> tuple[float
     )
 
 
+def _transpose3(r: list[list[float]]) -> list[list[float]]:
+    return [list(col) for col in zip(*r)]
+
+
+def _bone_by_name(bones: dict[str, "_Bone"], normalized: str) -> "_Bone | None":
+    for n, b in bones.items():
+        stripped = re.sub(r"^(mixamorig_|mixamorig:)", "", n, flags=re.IGNORECASE)
+        if stripped.replace(":", "_").replace(" ", "").lower() == normalized:
+            return b
+    return None
+
+
 _FACING_AXIS_POOL = ("head", "neck", "hips")
-# z 分量超过该阈值才判定正/背，否则视为侧面（约 11.5°）
-_FACING_Z_EPS = 0.2
 
 
-def _facing_for(bones: dict[str, "_Bone"], world_matrix) -> str | None:
-    """按 bind 姿态自标定朝向前向量，判定当前帧人物朝向。
+def _forward_world(bones: dict[str, "_Bone"], world_matrix) -> tuple[float, float, float] | None:
+    """按 bind 姿态自标定的"人物面朝方向"单位向量（世界系）。
 
-    返回 "front"（面向观察者 +Z）/ "back"（背对）/ "profile"（侧面）/ None（无法判定）。
+    Mixamo bind 姿态角色面向世界 +Z：把 +Z 反算进骨骼 bind 局部系得到
+    朝向前向量的局部坐标，再用当前帧世界旋转转回世界系。不依赖骨骼轴约定。
     """
     for axis_bone in _FACING_AXIS_POOL:
-        bone = next((b for n, b in bones.items()
-                     if re.sub(r"^(mixamorig_|mixamorig:)", "", n, flags=re.IGNORECASE).lower() == axis_bone), None)
+        bone = _bone_by_name(bones, axis_bone)
         if bone is None:
             continue
         r_bind = _rot_part(world_matrix(bone, use_anim=False))
-        # bind 姿态下指向世界 +Z 的那个局部向量 = 朝向前向量的局部坐标
-        f_local = _mat_vec([list(c) for c in zip(*r_bind)], (0.0, 0.0, 1.0))
-        norm = math.sqrt(sum(v * v for v in f_local))
-        if norm < 1e-6:
+        f_local = _mat_vec(_transpose3(r_bind), (0.0, 0.0, 1.0))
+        n = math.sqrt(sum(v * v for v in f_local))
+        if n < 1e-6:
             continue
-        f_local = (f_local[0] / norm, f_local[1] / norm, f_local[2] / norm)
+        f_local = (f_local[0] / n, f_local[1] / n, f_local[2] / n)
         r_frame = _rot_part(world_matrix(bone, use_anim=True))
         f_world = _mat_vec(r_frame, f_local)
-        if f_world[2] > _FACING_Z_EPS:
-            return "front"
-        if f_world[2] < -_FACING_Z_EPS:
-            return "back"
-        return "profile"
+        n2 = math.sqrt(sum(v * v for v in f_world))
+        if n2 < 1e-6:
+            continue
+        return (f_world[0] / n2, f_world[1] / n2, f_world[2] / n2)
     return None
+
+
+_FACING_Z_EPS = 0.2  # 前向向量 z 分量超过该值判正/背，否则视为侧面（约 11.5°）
+
+
+def _facing_for(bones: dict[str, "_Bone"], world_matrix) -> str | None:
+    """判定当前帧人物朝向：front（面向观察者）/ back / profile / None。"""
+    f_world = _forward_world(bones, world_matrix)
+    if f_world is None:
+        return None
+    if f_world[2] > _FACING_Z_EPS:
+        return "front"
+    if f_world[2] < -_FACING_Z_EPS:
+        return "back"
+    return "profile"
+
+
+# 面部点合成：COCO-18 的脸只有鼻(0)/双眼(14,15)/双耳(16,17) 五个标准点。
+# Mixamo rig 没有面部骨骼，用头骨世界变换 + 头颈距离作比例单位摆放
+# "虚拟眼骨"——相当于 MMD 的目/両目骨骼在任意 rig 上的等价物。
+_FACE_OFFSETS = {
+    0:  (0.55, 0.35, 0.00),   # nose：前方偏上
+    14: (0.45, 0.50, 0.18),   # right_eye：人物自身右侧（正面像的图左侧）
+    15: (0.45, 0.50, -0.18),  # left_eye
+    16: (-0.05, 0.45, 0.50),  # right_ear：耳在矢状面，略靠后
+    17: (-0.05, 0.45, -0.50), # left_ear
+}
+# 相对头骨中心的相机轴深度低于该值判被头颅遮挡（耳约 -0.05d 仍可见）
+_FACE_VIS_EPS = -0.15
+
+
+def _synth_face_points(bones: dict[str, "_Bone"], world_matrix, slots) -> bool:
+    """合成 18 点标准面部五点（3D 世界坐标），随朝向自动显隐。"""
+    head = _bone_by_name(bones, "head")
+    neck = _bone_by_name(bones, "neck")
+    if head is None or neck is None:
+        return False
+    f = _forward_world(bones, world_matrix)
+    if f is None:
+        return False
+    hx, hy, hz = _mat_translation(world_matrix(head))
+    nx, ny, nz = _mat_translation(world_matrix(neck))
+    d = math.sqrt((hx - nx) ** 2 + (hy - ny) ** 2 + (hz - nz) ** 2)
+    if d < 1e-6:
+        return False
+    # 人物右方 = forward × up（f=+Z 时为 -X，即正面像里右眼落在图左侧，符合 COCO 约定）
+    rx, ry, rz = f[1] * 0.0 - f[2] * 1.0, f[2] * 0.0 - f[0] * 0.0, f[0] * 1.0 - f[1] * 0.0
+    rlen = math.sqrt(rx * rx + ry * ry + rz * rz)
+    if rlen < 1e-6:
+        return False
+    rx, ry, rz = rx / rlen, ry / rlen, rz / rlen
+    for slot, (a_fwd, b_up, c_right) in _FACE_OFFSETS.items():
+        px = hx + f[0] * a_fwd * d + rx * c_right * d
+        py = hy + f[1] * a_fwd * d + 1.0 * b_up * d + ry * c_right * d
+        pz = hz + f[2] * a_fwd * d + rz * c_right * d
+        visible = (pz - hz) > _FACE_VIS_EPS * d
+        slots[slot] = (px, py, pz, CONF if visible else 0.0)  # type: ignore[misc]
+    return True
 
 
 def parse_collada(
@@ -268,20 +334,15 @@ def parse_collada(
         slots[slot] = (x, y, z, CONF)  # type: ignore[misc]
         mapped.add(slot)
 
-    # 朝向判定：Mixamo bind 姿态角色面向世界 +Z，把 +Z 反算进 head 骨骼
-    # bind 局部系得到"朝向前向量"，再用当前帧 head 世界旋转转回世界系。
-    # 不依赖具体骨骼轴约定，绕 Y 转体/转身动画自然生效。
+    # 朝向判定：bind 姿态自标定面朝方向（Mixamo bind 面向 +Z），不依赖骨骼轴约定
     facing = _facing_for(bones, world_matrix)
+    # 面部五点合成（虚拟眼骨）：正面显示鼻+双眼+双耳，背面只留耳廓
+    synth_ok = _synth_face_points(bones, world_matrix, slots)
 
-    if facing == "back":
-        # 模拟真实 OpenPose 对背面人体的输出：五官点不出现。
-        # ControlNet 训练分布里"无五官 = 背面"，生成端据此消歧正/反面。
-        for face_slot in (0, 14, 15, 16, 17):
-            x, y, z, c = slots[face_slot]
-            if c > 0:
-                slots[face_slot] = (x, y, z, 0.0)
-
-    missing = [i for i in range(18) if i not in mapped]
+    missing = [
+        i for i in range(18)
+        if i not in mapped and not (synth_ok and i in _FACE_OFFSETS)
+    ]
     if missing:
         warnings.append(f"未映射到骨骼的标准点：{missing}（导入后为隐藏点，可在编辑器补）")
 
@@ -342,7 +403,7 @@ def parse_collada(
     if facing:
         warnings.append(
             f"3D 朝向判定：{facing}"
-            + ("（已隐去五官点，生成时提示词建议加 back view）" if facing == "back" else "")
+            + ("（鼻/眼点已隐藏，生成时提示词建议加 back view）" if facing == "back" else "")
         )
     warnings.append("左右为观察者视角约定，导入后请目视核对方向")
     return pose, warnings, total_frames
