@@ -156,6 +156,20 @@ python tools/comfyui/run_openpose_test.py --pose poses/sitting/preview.png --com
 - 参考图建议：单人、清晰、构图干净；半身或全身皆可
 - 实测：同一参考图 + 不同姿势（站立/坐姿），人物相貌、发型、着装风格保持一致
 
+## 生成命令自动填入（一键复制）
+
+WebUI 编辑器里的「复制生成命令（本地出图）」不再需要手改任何占位值——点一下即复制完整可运行的 PowerShell 命令：
+
+- `--pose` 自动指向当前姿势的 `preview.png`（姿势未保存或有未保存修改时会提示先保存）
+- `--reference` 自动指向该姿势的角色参考图：**图片方式导入的姿势，原图会在保存时自动上传**为 `poses/<名字>/reference.png`，无需手动准备
+- `--prompt` 自动生成，三级来源（WebUI 提示条会显示用的是哪种）：
+  1. **MiniMax 现场生成**——姿势有参考图时，MiniMax 视觉模型看图写出英文出图提示词，并缓存到 `poses/<名字>/prompt.txt`
+  2. **缓存复用**——再次点击直接用缓存，不重复调用
+  3. **规则兜底**——无参考图或 MiniMax 不可用时，按关节角度拼出基础描述（如 bent knees / sitting pose）
+- `--seed 42` 固定种子保证可复现，想换人就改数字
+
+对应后端接口：`POST /api/poses/{name}/reference`（上传参考图）、`POST /api/gen-command`（生成命令）。
+
 **模型文件健康检查**：镜像源上出现过"文件头合法但权重里散布 NaN"的坏副本（CLIP-ViT-H 编码器曾中招，表现为生成全黑图）。下载任何 .safetensors 模型后先扫描再入库：
 
 ```bash
