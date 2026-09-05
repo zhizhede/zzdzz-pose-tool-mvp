@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { computeAngles, drawPose, JOINT_LABELS } from '../lib/skeleton'
-import { loadPoseObject, refreshList, saveAs } from '../stores/pose'
+import { loadPoseObject, refreshList, saveAs, setSourceImage } from '../stores/pose'
 import type { AngleMap, PoseFile } from '../types'
 
 const configured = ref<boolean | null>(null)
@@ -43,6 +43,8 @@ async function onFile(file: File | undefined) {
       throw new Error(err.detail ?? String(r.status))
     }
     const data = await r.json()
+    // 记住原图：保存姿势后自动上传为角色参考图，生成命令即可自动引用
+    setSourceImage(file)
     resultPose.value = data.pose
     resultName.value = `recognized-${new Date().toISOString().slice(5, 16).replace(/[-T:]/g, '')}`
     message.value = '识别完成。可拖入编辑器微调后保存入库（识别结果是草稿，请目视核对）'
