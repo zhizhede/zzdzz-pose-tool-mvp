@@ -11,10 +11,10 @@
 
 前提：两个服务已启动（见 [前置条件](#三前置条件)，日常只需启动一次）。
 
-**① 启动生成引擎**（ComfyUI，如果还没开）：
+**① 启动前置服务**（ComfyUI + 姿势编辑器，已在运行的会自动跳过）：
 
 ```bat
-E:\Program\zzdzz-ai\start_comfyui.bat
+tools\start-all.bat
 ```
 
 **② 打开姿势编辑器**：浏览器访问 <http://127.0.0.1:7860>，选一个姿势（或编辑/导入一个），点工具栏「下载骨架 PNG（喂 ControlNet）」拿到骨架图——也可以直接用仓库里现成的 `poses/sitting/preview.png`。
@@ -35,6 +35,13 @@ python tools/comfyui/run_openpose_test.py --pose poses/sitting/preview.png --com
 ---
 
 ## 前置条件
+
+**一键启动（推荐）**：双击 `tools\start-all.bat`，或在终端运行它。脚本自动检测并拉起两个服务（已在运行的跳过，可重复执行），全部就绪后显示 `ALL READY`：
+
+- ComfyUI 日志：`E:\Program\zzdzz-ai\comfyui.log`（启动失败先看这里）
+- 结束方式：关闭脚本拉起的两个最小化控制台窗口
+
+也可分别手动启动：
 
 | 组件 | 端口 | 启动方式 | 用途 |
 | --- | --- | --- | --- |
