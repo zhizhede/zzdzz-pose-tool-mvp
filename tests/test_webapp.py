@@ -101,3 +101,50 @@ def test_recognize_status_no_leak(client, monkeypatch):
     data = c.get("/api/recognize/status").json()
     assert set(data) == {"configured", "model"}
     assert "sk-" not in str(data)
+
+
+def test_reference_upload_and_gen_command(client):
+    """参考图上传后，生成命令自动带上 --reference 与缓存的 MiniMax 提示词。"""
+    c, poses_dir = client
+    buf = io.BytesIO()
+    Image.new("RGB", (8, 8), (200, 100, 50)).save(buf, format="PNG")
+    r = c.post("/api/poses/looking-down-phone/reference",
+               files={"file": ("ref.png", buf.getvalue(), "image/png")})
+    assert r.status_code == 200
+    assert (poses_dir / "looking-down-phone" / "reference.png").exists()
+
+    # 预置缓存提示词 → 走 minimax-cached 分支，不发网络请求
+    (poses_dir / "looking-down-phone" / "prompt.txt").write_text(
+        "a woman in a red dress", encoding="utf-8")
+    data = c.post("/api/gen-command",
+                  json={"name": "looking-down-phone", "use_minimax": True}).json()
+    assert data["reference"] is True
+    assert data["prompt_source"] == "minimax-cached"
+    assert data["prompt"] == "a woman in a red dress"
+    assert "--pose poses/looking-down-phone/preview.png" in data["command"]
+    assert '--reference "poses/looking-down-phone/reference.png"' in data["command"]
+
+
+def test_gen_command_without_reference_uses_rule(client):
+    c, _ = client
+    data = c.post("/api/gen-command",
+                  json={"name": "looking-down-phone", "use_minimax": False}).json()
+    assert data["reference"] is False
+    assert data["prompt_source"] == "rule"
+    assert "--reference" not in data["command"]
+    assert data["prompt"].startswith("a person with ")
+    assert "--pose poses/looking-down-phone/preview.png" in data["command"]
+
+
+def test_gen_command_unknown_pose(client):
+    r = c = None
+    c, _ = client
+    assert c.post("/api/gen-command", json={"name": "no-such-pose"}).status_code == 404
+
+
+def test_reference_upload_rejects_bad_name(client):
+    c, _ = client
+    # 空格不匹配 NAME_PATTERN；../ 会被 HTTP 客户端规范化掉，改用非法字符验证
+    r = c.post("/api/poses/bad%20name/reference",
+               files={"file": ("x.png", b"x", "image/png")})
+    assert r.status_code == 400

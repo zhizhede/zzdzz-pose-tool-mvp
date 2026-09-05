@@ -22,7 +22,12 @@ from pydantic import BaseModel, Field
 from .angles import compute_joint_angles
 from .diff import diff_poses
 from .library import POSE_FILENAME, build_index, iter_pose_dirs, load_meta
-from .recognize import DEFAULT_CONFIG_PATH, swap_left_right
+from .recognize import (
+    DEFAULT_CONFIG_PATH,
+    generate_prompt_via_minimax,
+    load_recognize_config,
+    swap_left_right,
+)
 from .render import render_pose
 from .schema import PoseFile, load_pose
 
@@ -48,6 +53,11 @@ class DiffBody(BaseModel):
     b: PoseFile
     threshold_px: float = 2.0
     person_index: int = 0
+
+
+class GenCommandBody(BaseModel):
+    name: str
+    use_minimax: bool = True
 
 
 def _pose_dir(name: str) -> Path:
@@ -155,6 +165,66 @@ def create_app() -> FastAPI:
             upload.write_bytes(raw)
             pose = recognize_image(upload, config, swap_sides=swap)
         return {"pose": pose.model_dump(), "angles": compute_joint_angles(pose)}
+
+    @app.post("/api/poses/{name}/reference")
+    async def upload_reference(name: str, file: UploadFile = File(...)) -> dict[str, Any]:
+        """保存姿势的角色参考图（用于生成命令的身份锁定与提示词自动生成）。"""
+        d = _pose_dir(name)
+        d.mkdir(parents=True, exist_ok=True)
+        raw = await file.read()
+        ref = d / "reference.png"
+        ref.write_bytes(raw)
+        return {"saved": str(ref), "bytes": len(raw)}
+
+    @app.post("/api/gen-command")
+    async def gen_command(body: GenCommandBody) -> dict[str, Any]:
+        """自动生成针对某姿势的本地出图命令：参考图与提示词自动填入。"""
+        d = _pose_dir(body.name)
+        pose_file = d / "pose.json"
+        if not pose_file.exists():
+            raise HTTPException(404, f"姿势不存在：{body.name}")
+        reference = d / "reference.png"
+        has_ref = reference.exists()
+
+        prompt, source = None, "rule"
+        cache = d / "prompt.txt"
+        if has_ref and cache.exists():
+            prompt, source = cache.read_text(encoding="utf-8").strip(), "minimax-cached"
+        if prompt is None and has_ref and body.use_minimax:
+            try:
+                config = load_recognize_config(ROOT / DEFAULT_CONFIG_PATH)
+                prompt = generate_prompt_via_minimax(reference, config)
+                cache.write_text(prompt, encoding="utf-8")
+                source = "minimax"
+            except Exception:
+                prompt = None  # MiniMax 不可用（无配置/网络），静默回退规则生成
+        if prompt is None:
+            angles = compute_joint_angles(load_pose(pose_file))
+            parts = ["upright torso" if (angles.get("torso_tilt_deg") or 0) < 30 else "leaning torso"]
+            knees = [angles.get("left_knee_deg"), angles.get("right_knee_deg")]
+            hips = [angles.get("left_hip_deg"), angles.get("right_hip_deg")]
+            if any(k is not None and k < 120 for k in knees):
+                parts.append("bent knees")
+            if all(h is not None and h < 100 for h in hips):
+                parts.append("sitting pose")
+            else:
+                parts.append("standing pose")
+            prompt = "a person with " + ", ".join(parts) + ", full body, photorealistic"
+            source = "rule"
+
+        pose_ref = f"poses/{body.name}/preview.png"
+        cmd = (
+            f'cd {ROOT}; '
+            f'python tools/comfyui/run_openpose_test.py '
+            f'--pose {pose_ref} '
+            f'--comfyui-root "E:/Program/zzdzz-ai/ComfyUI" '
+            f'--out "C:\\Users\\ZZDZZ\\Downloads"'
+        )
+        if has_ref:
+            cmd += f' --reference "poses/{body.name}/reference.png"'
+        cmd += f' --prompt "{prompt}" --seed 42'
+        return {"command": cmd, "prompt": prompt, "prompt_source": source,
+                "reference": has_ref}
 
     @app.post("/api/import")
     async def import_pose(

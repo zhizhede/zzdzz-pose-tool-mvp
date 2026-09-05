@@ -147,3 +147,32 @@ def recognize_image(
                 flat[i + 1] = min(max(flat[i + 1], 0.0), canvas_height - 1.0)
         person.pose_keypoints_2d = flat
     return pose
+
+
+# 自动出图提示词：让视觉模型看参考图，生成英文出图 prompt
+_DESCRIBE_PROMPT = (
+    "看这张图片。输出一条简洁的英文图像生成提示词（prompt），"
+    "描述人物的外貌、发型、服装、姿势和场景，写实照片风格，"
+    "以 a man 或 a woman 开头，30 到 60 个英文单词。"
+    "只输出提示词本身，不要任何解释、引号或 markdown 代码块。"
+)
+
+
+def generate_prompt_via_minimax(image_path: str | Path, config: dict[str, Any]) -> str:
+    """视觉模型根据角色参考图自动生成英文出图提示词。"""
+    image_path = Path(image_path)
+    if not image_path.exists():
+        raise FileNotFoundError(f"参考图不存在: {image_path}")
+    b64 = base64.b64encode(image_path.read_bytes()).decode("ascii")
+    messages = [{
+        "role": "user",
+        "content": [
+            {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{b64}"}},
+            {"type": "text", "text": _DESCRIBE_PROMPT},
+        ],
+    }]
+    text = _chat(config, messages).strip()
+    text = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL).strip().strip('"`')
+    if not text:
+        raise ValueError("模型未生成提示词")
+    return text
