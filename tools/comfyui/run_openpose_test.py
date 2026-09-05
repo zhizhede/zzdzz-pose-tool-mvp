@@ -55,8 +55,12 @@ def _http_json(base: str, path: str, payload: dict | None = None) -> dict:
         data = json.dumps(payload).encode()
         headers["Content-Type"] = "application/json"
     req = urllib.request.Request(url, data=data, headers=headers)
-    with urllib.request.urlopen(req, timeout=30) as resp:
-        return json.loads(resp.read())
+    try:
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            return json.loads(resp.read())
+    except urllib.error.HTTPError as e:
+        body = e.read().decode(errors="replace")
+        raise SystemExit(f"[!] ComfyUI 拒绝请求（{e.code}）：{body[:1500]}")
 
 
 def main() -> int:
@@ -70,6 +74,9 @@ def main() -> int:
     ap.add_argument("--no-depth", action="store_true",
                     help="不使用深度图双控（即使 pose 目录里有 preview_depth.png）")
     ap.add_argument("--depth-strength", type=float, default=0.7, help="深度 ControlNet 强度")
+    ap.add_argument("--reference", default=None,
+                    help="角色参考图路径：启用 IP-Adapter 身份锁定，生成同一个人")
+    ap.add_argument("--identity-weight", type=float, default=0.8, help="IP-Adapter 强度")
     ap.add_argument("--strength", type=float, default=1.0, help="骨架 ControlNet 强度")
     ap.add_argument("--seed", type=int, default=42)
     ap.add_argument("--host", default="http://127.0.0.1:8188")
@@ -83,8 +90,20 @@ def main() -> int:
     # 深度图双控：骨架图同目录存在 preview_depth.png 时自动启用
     depth_path = pose_path.with_name("preview_depth.png")
     use_depth = depth_path.exists() and not args.no_depth
-    workflow_path = (Path(__file__).with_name("workflow_openpose_depth_api.json")
-                     if use_depth else WORKFLOW_PATH)
+    # 身份锁定：提供 --reference 时启用 IP-Adapter
+    ref_path = Path(args.reference) if args.reference else None
+    use_identity = ref_path is not None
+    if use_identity and not ref_path.exists():
+        print(f"[!] 参考图不存在：{ref_path}，忽略身份锁定")
+        use_identity = False
+    if use_identity:
+        workflow_path = Path(__file__).with_name("workflow_identity_api.json")
+        if use_depth:
+            workflow_path = Path(__file__).with_name("workflow_identity_depth_api.json")
+    elif use_depth:
+        workflow_path = Path(__file__).with_name("workflow_openpose_depth_api.json")
+    else:
+        workflow_path = WORKFLOW_PATH
 
     input_name = "sitting_pose.png"
     shutil.copyfile(pose_path, root / "input" / input_name)
@@ -93,21 +112,35 @@ def main() -> int:
         depth_name = "depth_map.png"
         shutil.copyfile(depth_path, root / "input" / depth_name)
         print(f"[i] 深度双控启用：{depth_path.name}（depth strength={args.depth_strength}）")
+    ref_name = None
+    if use_identity:
+        ref_name = "reference.png"
+        shutil.copyfile(ref_path, root / "input" / ref_name)
+        print(f"[i] 身份锁定启用：{ref_path.name}（identity weight={args.identity_weight}）")
 
     workflow = json.loads(workflow_path.read_text(encoding="utf-8"))
 
-    # 按节点类型定位（不依赖具体节点编号，两种工作流通用）
+    # 按节点类型定位（不依赖具体节点编号，各工作流通用）
     def nodes_of(cls):
         return sorted((nid for nid, n in workflow.items() if n["class_type"] == cls), key=int)
 
-    load_images = nodes_of("LoadImage")
-    workflow[load_images[0]]["inputs"]["image"] = input_name
-    if depth_name and len(load_images) > 1:
-        workflow[load_images[1]]["inputs"]["image"] = depth_name
+    load_images = nodes_of("LoadImage")  # 各工作流内 LoadImage 按声明顺序=骨架、深度(如有)、参考(如有)
+    targets = [input_name]
+    if depth_name:
+        targets.append(depth_name)
+    if ref_name:
+        targets.append(ref_name)
+    assert len(load_images) == len(targets), "工作流 LoadImage 数量与控制图不匹配"
+    for nid, name in zip(load_images, targets):
+        workflow[nid]["inputs"]["image"] = name
     applies = nodes_of("ControlNetApply")
     workflow[applies[0]]["inputs"]["strength"] = args.strength
     if depth_name and len(applies) > 1:
         workflow[applies[1]]["inputs"]["strength"] = args.depth_strength
+    if use_identity:
+        ipa = nodes_of("IPAdapterAdvanced")
+        if ipa:
+            workflow[ipa[0]]["inputs"]["weight"] = args.identity_weight
     encodes = nodes_of("CLIPTextEncode")
     prompt = args.prompt or workflow[encodes[0]]["inputs"]["text"]
     if not args.no_auto_facing:
