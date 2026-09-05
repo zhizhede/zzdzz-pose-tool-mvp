@@ -114,6 +114,19 @@ python tools/comfyui/run_openpose_test.py --pose <骨架PNG> --comfyui-root <Com
 
 实测结论（同骨架同 seed 只改朝向词）：`front view` → 正面坐姿；`back view` → 背面伏案。朝向词是朝向的主控信号；骨架图中的五官点（背面时自动隐藏）为辅助信号。
 
+## 导出 BVH（送进 Blender / Unity）
+
+pose.json 的 3D 关节真值可以导出为 BVH 格式——Blender、Unity 及多数 3D 软件原生支持：
+
+```bash
+python -m pose_tool.cli export-bvh poses/sitting/pose.json --output sitting.bvh
+```
+
+- 导出的骨架**已摆好该姿势**（姿势携带在 rest 骨架里，旋转通道为 0），导入 3D 软件即见姿势
+- Blender：File → Import → Motion Capture (.bvh)；Unity：拖入项目后用 Skeleton 代理解析
+- 坐标系 y-up、单位厘米（Mixamo 惯例）；Blender 导入时轴向选 Y-up
+- 仅 DAE 导入的资产携带 3D 数据（可导 BVH）；识别 JSON 导入的 2D 资产不支持
+
 ## 身份锁定（同一角色）
 
 只控姿势不控身份时，每次生成的都是不同的人。加 `--reference` 指定角色参考图后，系统走 IP-Adapter 身份锁定，生成"参考图里这个人"执行指定姿势：
