@@ -9,6 +9,7 @@ import typer
 
 from .angles import compute_joint_angles, format_angles
 from .batch import batch_render
+from .depth import render_depth_to_png
 from .diff import diff_poses, format_report
 from .library import write_index
 from .recognize import DEFAULT_CONFIG_PATH, load_recognize_config, recognize_image
@@ -26,9 +27,14 @@ def render_cmd(
     pose_path: Path = typer.Argument(..., exists=True, dir_okay=False, help="pose.json 路径"),
     output: Path = typer.Option(..., "--output", "-o", help="输出 PNG 路径"),
     person: int = typer.Option(0, "--person", help="渲染第几个人"),
+    depth: bool = typer.Option(False, "--depth", help="渲染深度图（需 pose_keypoints_3d）而非骨架图"),
 ) -> None:
-    """把单个 pose.json 渲染成 ControlNet-OpenPose 风格骨架图。"""
-    out = render_to_png(load_pose(pose_path), output, person_index=person)
+    """把单个 pose.json 渲染成 ControlNet 控制图（骨架图或深度图）。"""
+    pose = load_pose(pose_path)
+    if depth:
+        out = render_depth_to_png(pose, output, person_index=person)
+    else:
+        out = render_to_png(pose, output, person_index=person)
     typer.echo(f"已渲染 → {out}")
 
 
