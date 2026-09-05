@@ -5,6 +5,8 @@ export interface Person {
   hand_left_keypoints_2d?: number[] | null
   hand_right_keypoints_2d?: number[] | null
   face_keypoints_2d?: number[] | null
+  /** 人物朝向（3D 导入判定）：front / back / profile；缺省未知 */
+  facing?: 'front' | 'back' | 'profile' | null
 }
 
 export interface PoseFile {

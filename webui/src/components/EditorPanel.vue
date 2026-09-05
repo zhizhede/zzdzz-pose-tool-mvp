@@ -44,6 +44,15 @@ async function copyJson() {
   }
 }
 
+/** 朝向 → 生成提示词片段：2D 骨架表达不了正/背面，必须靠提示词补 */
+function facingPromptFor(pose: PoseFile): { zh: string; prompt: string } {
+  const facing = pose.people[0]?.facing
+  if (facing === 'front') return { zh: '人物面向镜头', prompt: 'facing the camera, front view' }
+  if (facing === 'back') return { zh: '人物背对镜头', prompt: 'viewed from behind, back view' }
+  if (facing === 'profile') return { zh: '人物侧对镜头', prompt: 'side view, profile' }
+  return { zh: '', prompt: '' }
+}
+
 /** 规则式姿态摘要：从角度与关键点布局推导姿势特征，中英双语 */
 function withSemanticMeta(pose: PoseFile): PoseFile {
   const angles = computeAngles(pose)
@@ -86,6 +95,13 @@ function withSemanticMeta(pose: PoseFile): PoseFile {
     }
   }
 
+  // 朝向（3D 导入判定的真值）
+  const facingPrompt = facingPromptFor(pose)
+  if (facingPrompt.zh) {
+    parts.push(facingPrompt.zh)
+    partsEn.push(facingPrompt.prompt)
+  }
+
   const desc =
     `结构化姿态数据：OpenPose COCO-18 关键点，共 ${visible}/18 可见，单位像素，画布 ${pose.canvas_width}×${pose.canvas_height}。` +
     `自动姿势判定：${parts.join('，') || '无显著特征'}。` +
@@ -111,10 +127,15 @@ async function copyGenInstruction() {
   const wrapped = withSemanticMeta(store.current)
   const zh = wrapped.meta.auto_description ?? ''
   const en = wrapped.meta.auto_description_en ?? ''
+  const facing = facingPromptFor(store.current)
+  const facingLine = facing.prompt
+    ? `\n朝向要求（骨架图无法表达正/背面，生成时务必在提示词中加上：${facing.prompt}）。\nFacing requirement (add this to the image prompt: ${facing.prompt}).\n`
+    : '\n朝向要求：若骨架无法看出正反面，请按场景自行指定朝向提示词（如 facing the camera / viewed from behind）。\n'
   const instruction =
     `请严格按照随附骨架图中的人物姿势，生成一张写实人物全身照。\n` +
     `姿势要求（与骨架图一致）：${zh}\n` +
     `Pose reference (match the attached skeleton exactly): ${en}\n` +
+    facingLine +
     `要求：全身可见、姿势与骨架逐关节对应、不要自行改变动作；背景与服装可自由发挥。`
   try {
     await navigator.clipboard.writeText(instruction)
