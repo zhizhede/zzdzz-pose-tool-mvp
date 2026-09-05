@@ -346,6 +346,14 @@ def parse_collada(
     if missing:
         warnings.append(f"未映射到骨骼的标准点：{missing}（导入后为隐藏点，可在编辑器补）")
 
+    # 3D 真值随 pose.json 保留（深度图渲染依据）；隐藏点记零
+    flat3d: list[float] = []
+    for x, y, z, c in slots:
+        if c > 0:
+            flat3d.extend([float(x), float(y), float(z)])
+        else:
+            flat3d.extend([0.0, 0.0, 0.0])
+
     # 投影：y-up 世界 → 画布（y 翻转）
     mapped_pts = [(x, y) for x, y, _z, c in slots if c > 0]
     if not mapped_pts:
@@ -392,6 +400,8 @@ def parse_collada(
     person: dict[str, Any] = {"pose_keypoints_2d": flat}
     if facing:
         person["facing"] = facing
+    if any(v != 0.0 for v in flat3d):
+        person["pose_keypoints_3d"] = flat3d
     pose = PoseFile.model_validate({
         "version": "0.2",
         "canvas_width": canvas,

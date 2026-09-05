@@ -46,12 +46,22 @@ class Person(BaseModel):
     # 人物朝向（3D 导入时判定）：front=面向观察者 / back=背对 / profile=侧面。
     # 可选字段，旧文件缺省即兼容；back 的骨架图不画五官点（见渲染约定）。
     facing: Optional[str] = None
+    # 3D 关节坐标（18 点 × [x,y,z]，导入时的世界系真值，单位与 rig 一致）。
+    # 可选字段：深度图渲染（preview_depth.png）的唯一依据，编辑器拖 2D 点不更新它。
+    pose_keypoints_3d: Optional[list[float]] = None
 
     @field_validator("facing")
     @classmethod
     def _check_facing(cls, v: Optional[str]) -> Optional[str]:
         if v is not None and v not in FACE_FACING_VALUES:
             raise ValueError(f"facing 只能是 {'/'.join(FACE_FACING_VALUES)} 或缺省，实际 {v!r}")
+        return v
+
+    @field_validator("pose_keypoints_3d")
+    @classmethod
+    def _check_3d(cls, v: Optional[list[float]]) -> Optional[list[float]]:
+        if v is not None and len(v) != N_BODY_KEYPOINTS * 3:
+            raise ValueError(f"pose_keypoints_3d 需要 {N_BODY_KEYPOINTS * 3} 个数（18 点 × [x,y,z]），实际 {len(v)} 个")
         return v
 
     @field_validator(*KEYPOINT_PART_COUNTS, check_fields=False)
