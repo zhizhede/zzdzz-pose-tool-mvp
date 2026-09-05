@@ -62,7 +62,8 @@
       ],
       "hand_left_keypoints_2d": null,
       "hand_right_keypoints_2d": null,
-      "face_keypoints_2d": null
+      "face_keypoints_2d": null,
+      "facing": "front"
     }
   ],
   "meta": {
