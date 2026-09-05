@@ -9,6 +9,7 @@ import typer
 
 from .angles import compute_joint_angles, format_angles
 from .batch import batch_render
+from .bvh import export_bvh_to_file
 from .depth import render_depth_to_png
 from .diff import diff_poses, format_report
 from .library import write_index
@@ -36,6 +37,17 @@ def render_cmd(
     else:
         out = render_to_png(pose, output, person_index=person)
     typer.echo(f"已渲染 → {out}")
+
+
+@app.command("export-bvh")
+def export_bvh_cmd(
+    pose_path: Path = typer.Argument(..., exists=True, dir_okay=False, help="pose.json 路径"),
+    output: Path = typer.Option(..., "--output", "-o", help="输出 BVH 路径"),
+    person: int = typer.Option(0, "--person", help="导出第几个人"),
+) -> None:
+    """把 pose.json 的 3D 关节导出为 BVH（Blender/Unity 等可直接导入）。"""
+    out = export_bvh_to_file(load_pose(pose_path), output, person_index=person)
+    typer.echo(f"已导出 → {out}")
 
 
 @app.command("diff")
