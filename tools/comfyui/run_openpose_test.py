@@ -26,6 +26,26 @@ from pathlib import Path
 
 WORKFLOW_PATH = Path(__file__).with_name("workflow_openpose_api.json")
 
+# 2D 骨架表达不了正/背面，朝向必须靠提示词；按 pose.json 的 facing 自动补
+FACING_PROMPT = {
+    "front": "facing the camera, front view",
+    "back": "viewed from behind, back view",
+    "profile": "side view, profile",
+}
+
+
+def auto_facing_prompt(pose_path: Path) -> str:
+    """读骨架图同目录的 pose.json，返回 facing 对应的提示词片段（无则空串）。"""
+    pose_json = pose_path.with_name("pose.json")
+    if not pose_json.exists():
+        return ""
+    try:
+        data = json.loads(pose_json.read_text(encoding="utf-8"))
+        facing = (data.get("people") or [{}])[0].get("facing")
+        return FACING_PROMPT.get(facing, "")
+    except (json.JSONDecodeError, OSError):
+        return ""
+
 
 def _http_json(base: str, path: str, payload: dict | None = None) -> dict:
     url = base + path
@@ -45,6 +65,8 @@ def main() -> int:
     ap.add_argument("--comfyui-root", required=True, help="ComfyUI 数据目录（含 input/ output/）")
     ap.add_argument("--out", required=True, help="生成图保存目录")
     ap.add_argument("--prompt", default=None, help="正向提示词（默认用工作流内置）")
+    ap.add_argument("--no-auto-facing", action="store_true",
+                    help="不按 pose.json 的 facing 自动追加朝向提示词")
     ap.add_argument("--strength", type=float, default=1.0, help="ControlNet 强度")
     ap.add_argument("--seed", type=int, default=42)
     ap.add_argument("--host", default="http://127.0.0.1:8188")
@@ -62,8 +84,13 @@ def main() -> int:
     workflow["5"]["inputs"]["image"] = input_name
     workflow["6"]["inputs"]["strength"] = args.strength
     workflow["7"]["inputs"]["seed"] = args.seed
-    if args.prompt:
-        workflow["2"]["inputs"]["text"] = args.prompt
+    prompt = args.prompt or workflow["2"]["inputs"]["text"]
+    if not args.no_auto_facing:
+        extra = auto_facing_prompt(pose_path)
+        if extra and extra not in prompt:
+            prompt = f"{prompt}, {extra}"
+            print(f"[i] 已按 pose.json 的 facing 自动追加朝向提示词: {extra}")
+    workflow["2"]["inputs"]["text"] = prompt
 
     queued = _http_json(args.host, "/prompt", {"prompt": workflow})
     prompt_id = queued["prompt_id"]

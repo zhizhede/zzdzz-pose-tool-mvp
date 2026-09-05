@@ -76,7 +76,7 @@ python tools/comfyui/run_openpose_test.py --pose <骨架PNG> --comfyui-root <Com
 | `--pose` | ✅ | 骨架 PNG 路径（通常是 `poses/<名字>/preview.png`） |
 | `--comfyui-root` | ✅ | 固定填 `E:/Program/zzdzz-ai/ComfyUI` |
 | `--out` | ✅ | **输出目录**（不是文件名！），图自动命名写入 |
-| `--prompt` | | 正向提示词：场景、人物、光线、画风。姿势不归它管 |
+| `--prompt` | | 正向提示词：场景、人物、光线、画风。姿势与朝向不归它管（朝向按 pose.json 的 facing 自动追加） |
 | `--strength` | | ControlNet 强度，默认 `1.0`。降低可让 AI 更自由（姿势可能漂移） |
 | `--seed` | | 随机种子。固定 = 可复现；换 = 同姿势不同人 |
 | `--host` | | ComfyUI 地址，默认 `http://127.0.0.1:8188` |
@@ -90,7 +90,7 @@ python tools/comfyui/run_openpose_test.py --pose <骨架PNG> --comfyui-root <Com
 
 - **DAE 导入时自动判定朝向**：利用 3D 骨骼数据算出 `facing` 字段（`front`/`back`/`profile`），写入 pose.json，导入警告里也会提示
 - **WebUI 生图指令自动带朝向词**：「复制生图指令」会根据 facing 自动追加"朝向要求"（如 `facing the camera, front view`），复制后直接用即可
-- **CLI 手动生成时**：按 facing 自己往 `--prompt` 里加对应词
+- **CLI 生成脚本自动注入**：`run_openpose_test.py` 检测到骨架图同目录有 pose.json 时，自动把朝向提示词追加到正向提示词末尾（`--no-auto-facing` 可关闭）
 
 | facing | 建议提示词 |
 | --- | --- |
