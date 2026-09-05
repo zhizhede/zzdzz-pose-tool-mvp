@@ -44,6 +44,14 @@ poses:
   - 512
   - 512
   people: 1
+- name: recognized-09051415
+  path: recognized-09051415
+  description: AI 识图草稿
+  tags: []
+  canvas:
+  - 512
+  - 512
+  people: 1
 - name: sitting
   path: sitting
   description: 由 Sitting-f0 另存
