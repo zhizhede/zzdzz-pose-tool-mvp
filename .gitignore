@@ -25,3 +25,6 @@ webui/node_modules/
 .vscode/
 .idea/
 outputs/
+
+# 本地运行日志
+logs/
