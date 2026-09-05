@@ -114,6 +114,23 @@ python tools/comfyui/run_openpose_test.py --pose <骨架PNG> --comfyui-root <Com
 
 实测结论（同骨架同 seed 只改朝向词）：`front view` → 正面坐姿；`back view` → 背面伏案。朝向词是朝向的主控信号；骨架图中的五官点（背面时自动隐藏）为辅助信号。
 
+## 动作图片识别（DWPose 本地）
+
+输入一张动作图片，本地识别出 18 点关键点生成 pose.json——"动作图片 → 动作数据"的入口：
+
+```bash
+python -m pose_tool.cli pose-detect 动作图片.jpg --output poses/my-pose/pose.json
+```
+
+WebUI 的「导入」直接选图片（jpg/png/webp）也可以。
+
+**能力边界（如实）**：
+
+- 识别的是**精确 2D 关键点**（DWPose，亚像素级），与早期 MiniMax 语义级识别（粗糙、会左右翻）不同
+- 单张图片**没有 3D 深度**——此类资产无 pose_keypoints_3d，不能导 BVH/深度图，朝向未知
+- 多人图片暂不支持（官方 yolox 人体检测器上传损坏，缺失时自动整图回退，仅单人居中图片可靠）
+- 模型位置：`E:/Program/zzdzz-ai/models/dwpose/`（dw-ll_ucoco_384.onnx + yolox_l.onnx）
+
 ## 导出 BVH（送进 Blender / Unity）
 
 pose.json 的 3D 关节真值可以导出为 BVH 格式——Blender、Unity 及多数 3D 软件原生支持：
