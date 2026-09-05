@@ -145,6 +145,34 @@ async function copyGenInstruction() {
   }
 }
 
+/** 一键复制本地生成命令：--pose 指向当前入库姿势，用户只需换参考图/提示词 */
+async function copyGenCommand() {
+  if (!store.current) return
+  if (!store.currentName) {
+    message.value = '当前姿势尚未入库：请先点「另存为…」保存，再复制生成命令'
+    return
+  }
+  if (store.dirty) {
+    message.value = '有未保存的修改：请先点「保存」，再复制生成命令'
+    return
+  }
+  const cmd =
+    `cd E:\\Program\\JavaGuide\\Codes\\zzdzz-pose-tool; ` +
+    `python tools/comfyui/run_openpose_test.py ` +
+    `--pose poses/${store.currentName}/preview.png ` +
+    `--comfyui-root "E:/Program/zzdzz-ai/ComfyUI" ` +
+    `--out "C:\\Users\\ZZDZZ\\Downloads" ` +
+    `--reference "换成你的角色参考图.png" ` +
+    `--prompt "描述画面：人物、场景、风格" ` +
+    `--seed 42`
+  try {
+    await navigator.clipboard.writeText(cmd)
+    message.value = '生成命令已复制：把 --reference 换成角色参考图、--prompt 改成想要的画面，粘贴到 PowerShell 回车即可'
+  } catch {
+    message.value = '复制失败：浏览器拒绝了剪贴板访问'
+  }
+}
+
 async function downloadPng() {
   if (!store.current) return
   // 走服务端渲染：与 controlnet_aux 训练分布一致的成品图，而不是画布截图
@@ -178,7 +206,8 @@ async function downloadPng() {
       <span v-if="store.dirty" title="有未保存修改"><span class="dirty-dot"></span>未保存</span>
       <span style="flex: 1"></span>
       <button class="ghost" title="导出姿态数值，供 openpose-editor / 程序 / 版本管理使用（生图 AI 不直接消费此格式）" @click="copyJson">复制 JSON（程序用）</button>
-      <button class="ghost" title="生成配合骨架图使用的生图指令文案：下载骨架 PNG 后，连同这段指令一起发给多模态生图 AI" @click="copyGenInstruction">复制生图指令（配骨架图）</button>
+      <button class="ghost" title="复制生图指令文案：下载骨架 PNG 后，连同这段指令一起发给多模态生图 AI" @click="copyGenInstruction">复制生图指令（配骨架图）</button>
+      <button class="ghost" title="一键复制本地出图的完整命令（--pose 自动指向本姿势），粘贴到 PowerShell 即可生成" @click="copyGenCommand">复制生成命令（本地出图）</button>
       <button class="ghost" title="渲染骨架图并下载——这才是喂给 ControlNet 的控制信号" @click="downloadPng">下载骨架 PNG（喂 ControlNet）</button>
       <button class="ghost" @click="showSaveAs = !showSaveAs">另存为…</button>
       <button class="primary" :disabled="!store.dirty || saving" @click="onSave">
