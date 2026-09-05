@@ -67,7 +67,10 @@ def main() -> int:
     ap.add_argument("--prompt", default=None, help="正向提示词（默认用工作流内置）")
     ap.add_argument("--no-auto-facing", action="store_true",
                     help="不按 pose.json 的 facing 自动追加朝向提示词")
-    ap.add_argument("--strength", type=float, default=1.0, help="ControlNet 强度")
+    ap.add_argument("--no-depth", action="store_true",
+                    help="不使用深度图双控（即使 pose 目录里有 preview_depth.png）")
+    ap.add_argument("--depth-strength", type=float, default=0.7, help="深度 ControlNet 强度")
+    ap.add_argument("--strength", type=float, default=1.0, help="骨架 ControlNet 强度")
     ap.add_argument("--seed", type=int, default=42)
     ap.add_argument("--host", default="http://127.0.0.1:8188")
     args = ap.parse_args()
@@ -77,20 +80,43 @@ def main() -> int:
     out_dir = Path(args.out)
     out_dir.mkdir(parents=True, exist_ok=True)
 
+    # 深度图双控：骨架图同目录存在 preview_depth.png 时自动启用
+    depth_path = pose_path.with_name("preview_depth.png")
+    use_depth = depth_path.exists() and not args.no_depth
+    workflow_path = (Path(__file__).with_name("workflow_openpose_depth_api.json")
+                     if use_depth else WORKFLOW_PATH)
+
     input_name = "sitting_pose.png"
     shutil.copyfile(pose_path, root / "input" / input_name)
+    depth_name = None
+    if use_depth:
+        depth_name = "depth_map.png"
+        shutil.copyfile(depth_path, root / "input" / depth_name)
+        print(f"[i] 深度双控启用：{depth_path.name}（depth strength={args.depth_strength}）")
 
-    workflow = json.loads(WORKFLOW_PATH.read_text(encoding="utf-8"))
-    workflow["5"]["inputs"]["image"] = input_name
-    workflow["6"]["inputs"]["strength"] = args.strength
-    workflow["7"]["inputs"]["seed"] = args.seed
-    prompt = args.prompt or workflow["2"]["inputs"]["text"]
+    workflow = json.loads(workflow_path.read_text(encoding="utf-8"))
+
+    # 按节点类型定位（不依赖具体节点编号，两种工作流通用）
+    def nodes_of(cls):
+        return sorted((nid for nid, n in workflow.items() if n["class_type"] == cls), key=int)
+
+    load_images = nodes_of("LoadImage")
+    workflow[load_images[0]]["inputs"]["image"] = input_name
+    if depth_name and len(load_images) > 1:
+        workflow[load_images[1]]["inputs"]["image"] = depth_name
+    applies = nodes_of("ControlNetApply")
+    workflow[applies[0]]["inputs"]["strength"] = args.strength
+    if depth_name and len(applies) > 1:
+        workflow[applies[1]]["inputs"]["strength"] = args.depth_strength
+    encodes = nodes_of("CLIPTextEncode")
+    prompt = args.prompt or workflow[encodes[0]]["inputs"]["text"]
     if not args.no_auto_facing:
         extra = auto_facing_prompt(pose_path)
         if extra and extra not in prompt:
             prompt = f"{prompt}, {extra}"
             print(f"[i] 已按 pose.json 的 facing 自动追加朝向提示词: {extra}")
-    workflow["2"]["inputs"]["text"] = prompt
+    workflow[encodes[0]]["inputs"]["text"] = prompt
+    workflow[nodes_of("KSampler")[0]]["inputs"]["seed"] = args.seed
 
     queued = _http_json(args.host, "/prompt", {"prompt": workflow})
     prompt_id = queued["prompt_id"]
