@@ -17,6 +17,21 @@ from .recognize import DEFAULT_CONFIG_PATH, load_recognize_config, recognize_ima
 from .render import render_to_png
 from .schema import export_json_schema, load_pose
 
+
+@app.command("pose-detect")
+def pose_detect_cmd(
+    image: Path = typer.Argument(..., exists=True, dir_okay=False, help="动作图片（jpg/png）"),
+    output: Path = typer.Option(..., "--output", "-o", help="输出 pose.json 路径"),
+    model_dir: Path = typer.Option(None, "--model-dir", help="DWPose ONNX 模型目录"),
+) -> None:
+    """用 DWPose 本地识别动作图片 → pose.json（2D 资产，无 3D/朝向）。"""
+    from .dwpose import detect_to_pose_dict
+
+    data = detect_to_pose_dict(image, model_dir)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+    typer.echo(f"已识别 → {output}")
+
 app = typer.Typer(
     help="zzdzz-pose-tool：把姿态当作可版本管理的工程资产（MVP）",
     no_args_is_help=True,

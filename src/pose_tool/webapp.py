@@ -186,6 +186,33 @@ def create_app() -> FastAPI:
                 "angles": compute_joint_angles(pose),
             }
 
+        if ext in (".jpg", ".jpeg", ".png", ".webp", ".bmp"):
+            # 动作图片 → DWPose 本地识别（2D 资产：无 3D/朝向）
+            import tempfile
+
+            from .dwpose import DEFAULT_MODEL_DIR, detect_to_pose_dict
+
+            with tempfile.TemporaryDirectory() as td:
+                upload = _Path(td) / f"upload{ext}"
+                upload.write_bytes(raw)
+                try:
+                    data = detect_to_pose_dict(upload, DEFAULT_MODEL_DIR)
+                except FileNotFoundError as e:
+                    raise HTTPException(400, f"DWPose 模型未安装：{e}")
+                except ValueError as e:
+                    raise HTTPException(400, str(e))
+                except ImportError as e:
+                    raise HTTPException(400, f"缺少依赖（.venv 需安装 onnxruntime 与 opencv-python-headless）：{e}")
+            warnings = ["DWPose 识别为 2D 资产：无 3D 数据（不可导 BVH/深度图），朝向未知"]
+            pose = PoseFile.model_validate(data)
+            return {
+                "format": "dwpose-image",
+                "pose": pose.model_dump(),
+                "warnings": warnings + ["识别精度为关键点级，建议目视核对后再使用"],
+                "total_frames": 1,
+                "angles": compute_joint_angles(pose),
+            }
+
         try:
             data = _json.loads(raw)
         except _json.JSONDecodeError as e:
