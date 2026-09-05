@@ -77,6 +77,23 @@ python tools/comfyui/run_openpose_test.py --pose <骨架PNG> --comfyui-root <Com
 **prompt 写法建议**：`主体 + 姿势一致的场景描述 + 光线/画风`。
 例：`"a man in a suit sitting on a park bench, autumn, golden hour, photorealistic"`。
 
+## 朝向控制（正/背面）
+
+2D 骨架图**无法表达正面/背面**——同一个人面向镜头和背对镜头，18 个关键点的平面位置几乎一样。朝向必须靠提示词补充，系统已经帮你做了大半：
+
+- **DAE 导入时自动判定朝向**：利用 3D 骨骼数据算出 `facing` 字段（`front`/`back`/`profile`），写入 pose.json，导入警告里也会提示
+- **WebUI 生图指令自动带朝向词**：「复制生图指令」会根据 facing 自动追加"朝向要求"（如 `facing the camera, front view`），复制后直接用即可
+- **CLI 手动生成时**：按 facing 自己往 `--prompt` 里加对应词
+
+| facing | 建议提示词 |
+| --- | --- |
+| `front` | `facing the camera, front view` |
+| `back` | `viewed from behind, back view` |
+| `profile` | `side view, profile` |
+| （无字段） | 按场景自行指定，避免模型随机选择朝向 |
+
+实测结论（同骨架同 seed 只改朝向词）：`front view` → 正面坐姿；`back view` → 背面伏案。朝向词是朝向的主控信号；骨架图中的五官点（背面时自动隐藏）为辅助信号。
+
 ## 确定性复现与批量出图
 
 - **复现**：同一 `pose.json` 渲染的骨架 + 同一 seed → 逐像素一致。pose.json 提交 git 后，任何人任何机器都能重新生成同一张图——这就是"姿势即程序"。
@@ -107,6 +124,7 @@ foreach ($s in 1,2,3) { python tools/comfyui/run_openpose_test.py --pose poses/s
 | `OSError: [Errno 22] Invalid argument` | 服务端输出管道被截断（外部托管启动方式的坑）→ 重启 ComfyUI 即恢复 |
 | PowerShell 报 `Missing expression after unary operator '--'` | 把 Bash 的 `\` 换行命令整段贴进了 PowerShell → 用单行命令，或用反引号 `` ` `` 续行 |
 | 图生成了但姿势不对 | 检查 `--pose` 是否指向正确的 preview.png；`--strength` 不要低于 0.8；prompt 里不要写与姿势冲突的词（如骨架是坐姿却写 standing） |
+| 生成人物朝向随机（正面/背面不定） | 2D 骨架不含朝向 → 看 pose.json 的 `facing` 字段，把对应朝向词加进 prompt（见「朝向控制」） |
 | `the following arguments are required` | 参数没传全，或多行命令被 PowerShell 拆散（同上，用单行） |
 | 生成很慢（>2 分钟/张） | 显存被其他程序占用；关掉占显存的应用后重启 ComfyUI |
 
