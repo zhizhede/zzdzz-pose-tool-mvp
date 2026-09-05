@@ -114,6 +114,24 @@ python tools/comfyui/run_openpose_test.py --pose <骨架PNG> --comfyui-root <Com
 
 实测结论（同骨架同 seed 只改朝向词）：`front view` → 正面坐姿；`back view` → 背面伏案。朝向词是朝向的主控信号；骨架图中的五官点（背面时自动隐藏）为辅助信号。
 
+## 身份锁定（同一角色）
+
+只控姿势不控身份时，每次生成的都是不同的人。加 `--reference` 指定角色参考图后，系统走 IP-Adapter 身份锁定，生成"参考图里这个人"执行指定姿势：
+
+```powershell
+python tools/comfyui/run_openpose_test.py --pose poses/sitting/preview.png --comfyui-root "E:/Program/zzdzz-ai/ComfyUI" --out "outputs" --reference "角色参考图.png" --prompt "..." --seed 42
+```
+
+- `--identity-weight`（默认 0.8）：参考图相貌的保持强度；调低则更像提示词描述的人
+- 参考图建议：单人、清晰、构图干净；半身或全身皆可
+- 实测：同一参考图 + 不同姿势（站立/坐姿），人物相貌、发型、着装风格保持一致
+
+**模型文件健康检查**：镜像源上出现过"文件头合法但权重里散布 NaN"的坏副本（CLIP-ViT-H 编码器曾中招，表现为生成全黑图）。下载任何 .safetensors 模型后先扫描再入库：
+
+```bash
+python tools/comfyui/scan_safetensors.py <文件.safetensors>
+```
+
 ## 确定性复现与批量出图
 
 - **复现**：同一 `pose.json` 渲染的骨架 + 同一 seed → 逐像素一致。pose.json 提交 git 后，任何人任何机器都能重新生成同一张图——这就是"姿势即程序"。
